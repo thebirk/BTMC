@@ -130,6 +130,8 @@ namespace BTMC.Core
                 await _eventSystem.DispatchAsync(new PlayerJoinEvent(_client, login, isSpectator));
             };
 
+            await _client.CallMethodAsync("system.listMethods");
+
             _client.OnPlayerChat += async (int playerUid, string login, string text, bool isRegisteredCmd) =>
             {
                 _logger.LogDebug("OnPlayerChat");
@@ -203,32 +205,35 @@ namespace BTMC.Core
 
         private void RegisterAllCommands()
         {
-            foreach (Type t in Assembly.GetExecutingAssembly().GetTypes())
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
-                if (t.GetCustomAttributes(typeof(CommandAttribute), true).Length > 0)
+                foreach (var t in assembly.GetTypes())
                 {
-                    var attribute = t.GetCustomAttribute<CommandAttribute>();
-
-                    if (_commandRepository.Commands.ContainsKey(attribute.Name))
+                    if (t.GetCustomAttributes(typeof(CommandAttribute), true).Length > 0)
                     {
-                        throw new Exception($"Cannot add command '{attribute.Name}' as there is a already a command/alias with that name");
-                    }
+                        var attribute = t.GetCustomAttribute<CommandAttribute>();
 
-                    _commandRepository.Commands[attribute.Name] = t;
-                    _commandRepository.AllCommands[attribute.Name] = t;
-
-                    if (!string.IsNullOrEmpty(attribute.Alias))
-                    {
-                        var aliases = attribute.Alias.Split(',');
-                        foreach (var alias in aliases)
+                        if (_commandRepository.Commands.ContainsKey(attribute.Name))
                         {
-                            var trimmed = alias.Trim();
-                            if (_commandRepository.Commands.ContainsKey(trimmed))
-                            {
-                                throw new Exception($"Cannot add alias '{trimmed}' as there is a already a command/alias with that name");
-                            }
+                            throw new Exception($"Cannot add command '{attribute.Name}' as there is a already a command/alias with that name");
+                        }
 
-                            _commandRepository.Commands[alias.Trim()] = t;
+                        _commandRepository.Commands[attribute.Name] = t;
+                        _commandRepository.AllCommands[attribute.Name] = t;
+
+                        if (!string.IsNullOrEmpty(attribute.Alias))
+                        {
+                            var aliases = attribute.Alias.Split(',');
+                            foreach (var alias in aliases)
+                            {
+                                var trimmed = alias.Trim();
+                                if (_commandRepository.Commands.ContainsKey(trimmed))
+                                {
+                                    throw new Exception($"Cannot add alias '{trimmed}' as there is a already a command/alias with that name");
+                                }
+
+                                _commandRepository.Commands[alias.Trim()] = t;
+                            }
                         }
                     }
                 }
@@ -306,6 +311,7 @@ namespace BTMC.Core
                 {
                     services.AddSingleton<CommandRepository>();
                     services.AddHostedService<GbxRemoteService>();
+                    services.AddSingleton<AdminController>();
 
                     RegisterAllPlugins(services);
 
