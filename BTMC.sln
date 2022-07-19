@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BTMC.LocalRecords", "BTMC.L
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTMC", "BTMC\BTMC.csproj", "{3404A01E-2C6A-422D-91EC-9C9BB3B28057}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTMC.TestPlugin", "BTMC.TestPlugin\BTMC.TestPlugin.csproj", "{92854226-3AC6-4B28-9BB9-A6ADD3A4FDDE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{3404A01E-2C6A-422D-91EC-9C9BB3B28057}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3404A01E-2C6A-422D-91EC-9C9BB3B28057}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3404A01E-2C6A-422D-91EC-9C9BB3B28057}.Release|Any CPU.Build.0 = Release|Any CPU
+		{92854226-3AC6-4B28-9BB9-A6ADD3A4FDDE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{92854226-3AC6-4B28-9BB9-A6ADD3A4FDDE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{92854226-3AC6-4B28-9BB9-A6ADD3A4FDDE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{92854226-3AC6-4B28-9BB9-A6ADD3A4FDDE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

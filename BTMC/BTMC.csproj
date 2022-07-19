@@ -7,7 +7,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BTMC.Core\BTMC.Core.csproj" />
-    <ProjectReference Include="..\BTMC.LocalRecords\BTMC.LocalRecords.csproj" />
+    <ProjectReference Include="..\BTMC.TestPlugin\BTMC.TestPlugin.csproj" />
   </ItemGroup>
 
 </Project>

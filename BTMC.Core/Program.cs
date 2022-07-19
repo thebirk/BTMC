@@ -11,6 +11,7 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System;
+using System.Diagnostics;
 using System.Linq;
 using GbxRemoteNet.XmlRpc.Types;
 
@@ -42,15 +43,7 @@ namespace BTMC.Core
 
         public void Unload();
     }
-
-    public enum EventType
-    {
-        Join,
-        Disconnect,
-        Chat,
-        Finish
-    }
-
+    
     [AttributeUsage(AttributeTargets.Method)]
     public class EventHandlerAttribute : Attribute
     {
@@ -65,19 +58,6 @@ namespace BTMC.Core
     [AttributeUsage(AttributeTargets.Class)]
     public class SettingsAttribute : Attribute
     {
-    }
-
-    public class PlayerChatArgs
-    {
-        public string Login { get; set; }
-        public string PlayerUid { get; set; }
-        public string Message { get; set; }
-    }
-
-    public class PlayerFinishArgs
-    {
-        public string PlayerUid { get; set; }
-        public string TimeOrScore { get; set; }
     }
 
     public class PlayerInfo
@@ -98,6 +78,7 @@ namespace BTMC.Core
         private readonly IConfiguration _configuration;
         private readonly IServiceProvider _serviceProvider;
         private readonly CommandRepository _commandRepository;
+        private readonly EventSystem _eventSystem;
 
         private GbxRemoteClient _client { get; set; }
 
@@ -107,8 +88,10 @@ namespace BTMC.Core
             _configuration = configuration;
             _serviceProvider = serviceProvider;
             _commandRepository = commandRepository;
+            _eventSystem = new EventSystem();
 
             RegisterAllCommands();
+            RegisterAllEventHandlers();
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
@@ -129,7 +112,9 @@ namespace BTMC.Core
             }
             _logger.LogInformation($"Connected to client {settings.Host}:{settings.Port}");
             
+            //await _client.SetApiVersionAsync("2013-04-16");
             //await _client.SetApiVersionAsync("2019-03-02");
+            //_logger.LogInformation("{}", (await _client.GetVersionAsync()).ApiVersion);
             
             if (!await _client.AuthenticateAsync(settings.SuperAdmin.Name, settings.SuperAdmin.Password))
             {
@@ -139,10 +124,10 @@ namespace BTMC.Core
             }
             _logger.LogInformation($"Authenticated for client {settings.Host}:{settings.Port}");
 
-            _client.OnPlayerConnect += (login, isSpectator) =>
+            _client.OnPlayerConnect += async (login, isSpectator) =>
             {
                 _logger.LogInformation("Player Connected: " + login + ", isSpectator: " + isSpectator);
-                return Task.CompletedTask;
+                await _eventSystem.DispatchAsync(new PlayerJoinEvent(_client, login, isSpectator));
             };
 
             _client.OnPlayerChat += async (int playerUid, string login, string text, bool isRegisteredCmd) =>
@@ -181,7 +166,7 @@ namespace BTMC.Core
                 }
                 else
                 {
-                    await _client.ChatSendServerMessageAsync(login + "$g$z: " + text.Trim());
+                    await _client.ChatSendServerMessageAsync(playerInfo.NickName + "$g$z: " + text.Trim());
                 }
 
                 return;
@@ -216,7 +201,7 @@ namespace BTMC.Core
             return (CommandBase)instance;
         }
 
-        void RegisterAllCommands()
+        private void RegisterAllCommands()
         {
             foreach (Type t in Assembly.GetExecutingAssembly().GetTypes())
             {
@@ -249,6 +234,36 @@ namespace BTMC.Core
                 }
             }
         }
+
+        private void RegisterAllEventHandlers()
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                foreach (var t in assembly.DefinedTypes)
+                {
+                    if (t != typeof(IPlugin) && t.IsAssignableTo(typeof(IPlugin)))
+                    {
+                        var pluginInstance = (IPlugin) _serviceProvider.GetService(t.AsType());
+                        _logger.LogInformation("Loaded plugin: {} ({})", pluginInstance.Name, pluginInstance.Version);
+
+                        foreach (var method in t.GetMethods())
+                        {
+                            var attribute = method.GetCustomAttribute<EventHandlerAttribute>();
+                            if (attribute == null)
+                            {
+                                continue;
+                            }
+                            
+                            // TODO: typecheck method arguments
+                            
+                            var handler = Delegate.CreateDelegate(typeof(EventHandler<PlayerJoinEvent>), pluginInstance, method);
+                            _eventSystem.RegisterEventHandler(attribute.Type, handler);
+                            _logger.LogInformation("{}: Registered event handler {} for event {}", pluginInstance.Name, method.Name, attribute.Type);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public class Program
@@ -269,8 +284,8 @@ namespace BTMC.Core
             {
                 if (t != typeof(IPlugin) && t.IsAssignableTo(typeof(IPlugin)))
                 {
-                    Console.WriteLine($"Found plugin: {t.FullName}");
-                    services.AddSingleton(t);
+                    Console.WriteLine("Found plugin: {0}", t.FullName);
+                    services.AddSingleton(t.AsType());
                 }
             }
         }
@@ -293,6 +308,8 @@ namespace BTMC.Core
                     services.AddHostedService<GbxRemoteService>();
 
                     RegisterAllPlugins(services);
+
+                    services.BuildServiceProvider();
                 });
         }
     }

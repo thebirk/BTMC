@@ -73,7 +73,7 @@ namespace BTMC.LocalRecords
     {
         // All loaded Plugins gets registered as singleton services
         private readonly LocalRecords _plugin;
-        private ILogger<TopRecsCommand> _logger;
+        private readonly ILogger<TopRecsCommand> _logger;
 
         public TopRecsCommand(LocalRecords plugin, ILogger<TopRecsCommand> logger)
         {
