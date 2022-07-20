@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System;
 using System.Diagnostics;
+using System.Diagnostics.Eventing.Reader;
 using System.Linq;
 using GbxRemoteNet.XmlRpc.Types;
 
@@ -112,10 +113,16 @@ namespace BTMC.Core
             }
             _logger.LogInformation($"Authenticated for client {settings.Host}:{settings.Port}");
 
-            _client.OnPlayerConnect += async (login, isSpectator) =>
+            _client.OnPlayerConnect += async (string login, bool isSpectator) =>
             {
-                _logger.LogInformation("Player Connected: " + login + ", isSpectator: " + isSpectator);
+                _logger.LogInformation("Player disconnected: {}, isSpectator: {}", login, isSpectator);
                 await _eventSystem.DispatchAsync(new PlayerJoinEvent(_client, login, isSpectator));
+            };
+
+            _client.OnPlayerDisconnect += async (string login, string reason) =>
+            {
+                _logger.LogInformation("Player disconnected: {}, reason: {}", login, reason);
+                await _eventSystem.DispatchAsync(new PlayerDisconnectEvent(_client, login, reason));
             };
 
             await _client.CallMethodAsync("system.listMethods");
@@ -368,6 +375,9 @@ namespace BTMC.Core
                                     break;
                                 case EventType.Chat:
                                     handler = CreateEventHandlerDelegate<PlayerChatEvent>(pluginAttribute, pluginInstance, method);
+                                    break;
+                                case EventType.Disconnect:
+                                    handler = CreateEventHandlerDelegate<PlayerDisconnectEvent>(pluginAttribute, pluginInstance, method);
                                     break;
                                 default:
                                     throw new Exception($"Invalid EventType enum: {attribute.Type}");

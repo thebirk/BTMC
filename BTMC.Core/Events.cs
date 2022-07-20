@@ -72,6 +72,18 @@ namespace BTMC.Core
         }
     }
 
+    public class PlayerDisconnectEvent : Event
+    {
+        public string Login { get; set; }
+        public string Reason { get; set; }
+
+        public PlayerDisconnectEvent(GbxRemoteClient client, string login, string reason) : base(EventType.Disconnect, client)
+        {
+            Login = login;
+            Reason = reason;
+        }
+    }
+
     public class PlayerFinishArgs
     {
         public string PlayerUid { get; set; }
@@ -95,6 +107,7 @@ namespace BTMC.Core
         // How this ended up like this I'm not quite sure of. It came about after a lot experimentation
         // about how to keep as much type information as possible.
         private readonly EventDispatcher<PlayerJoinEvent> _playerJoinDispatcher = new();
+        private readonly EventDispatcher<PlayerDisconnectEvent> _playerDisconnectDispatcher = new();
         private readonly EventDispatcher<PlayerChatEvent> _playerChatDispatcher = new();
         private readonly EventDispatcher<CustomEvent> _customDispatcher = new();
 
@@ -104,6 +117,8 @@ namespace BTMC.Core
             {
                 case EventType.Join:
                     return _playerJoinDispatcher.DispatchAsync((PlayerJoinEvent)e);
+                case EventType.Disconnect:
+                    return _playerDisconnectDispatcher.DispatchAsync((PlayerDisconnectEvent)e);
                 case EventType.Chat:
                     return _playerChatDispatcher.DispatchAsync((PlayerChatEvent)e);
                 case EventType.Custom:
@@ -119,6 +134,9 @@ namespace BTMC.Core
             {
                 case EventType.Join:
                     _playerJoinDispatcher.RegisterEventHandler((EventHandler<PlayerJoinEvent>) handler);
+                    break;
+                case EventType.Disconnect:
+                    _playerDisconnectDispatcher.RegisterEventHandler((EventHandler<PlayerDisconnectEvent>) handler);
                     break;
                 case EventType.Custom:
                     _customDispatcher.RegisterEventHandler((EventHandler<CustomEvent>) handler);
