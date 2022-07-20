@@ -30,47 +30,35 @@ namespace BTMC.Core
         public GbxRemoteSettingsSuperAdmin SuperAdmin { get; set; }
     }
 
-    public class CommandRepository
+    public enum CommandDefinitionType
     {
-        public Dictionary<string, Type> AllCommands { get; private set; } = new Dictionary<string, Type>();
-        public Dictionary<string, Type> Commands { get; private set; } = new Dictionary<string, Type>();
-    }
-
-    public interface IPlugin
-    {
-        public string Name { get; }
-        public string Version { get; }
-
-        public void Unload();
+        Command,
+        BasicCommand,
     }
     
-    [AttributeUsage(AttributeTargets.Method)]
-    public class EventHandlerAttribute : Attribute
+    public class CommandDefinition
     {
-        public EventType Type { get; set; }
+        public CommandDefinitionType Type { get; set; }
+        public Type CommandClassType { get; set; }
+        public BasicCommandHandler BasicCommandHandler { get; set; }
+    }
 
-        public EventHandlerAttribute(EventType type)
-        {
-            Type = type;
-        }
+    public class CommandRepository
+    {
+        /// <summary>
+        /// All unique commands
+        /// </summary>
+        public Dictionary<string, CommandDefinition> AllCommands { get; private set; } = new Dictionary<string, CommandDefinition>();
+        /// <summary>
+        /// All commands with their aliases also represented
+        /// </summary>
+        public Dictionary<string, CommandDefinition> Commands { get; private set; } = new Dictionary<string, CommandDefinition>();
     }
 
     [AttributeUsage(AttributeTargets.Class)]
     public class SettingsAttribute : Attribute
     {
     }
-
-    public class PlayerInfo
-    {
-        public string Login;
-        public string NickName;
-        public int PlayerId;
-        public int TeamId;
-        public bool IsSpectator;
-        public bool IsInOfficialMode;
-        public int LadderRanking;
-    }
-
 
     public class GbxRemoteService : IHostedService
     {
@@ -134,18 +122,11 @@ namespace BTMC.Core
 
             _client.OnPlayerChat += async (int playerUid, string login, string text, bool isRegisteredCmd) =>
             {
-                _logger.LogDebug("OnPlayerChat");
                 // Ignore messages sent by the server
                 if (playerUid == 0)
                 {
                     return;
                 }
-
-                //XmlRpcTypes.ToNativeValue<>
-                //var playerInfo = (PlayerInfo) XmlRpcTypes.ToNativeStruct<PlayerInfo>((XmlRpcStruct)await _client.CallOrFaultAsync("GetPlayerInfo", login, 0));
-                var a = await _client.CallOrFaultAsync("GetPlayerInfo", login, 0);
-                var playerInfo = (PlayerInfo)XmlRpcTypes.ToNativeValue<PlayerInfo>(a);
-                _logger.LogInformation($"PlayerChat: [{playerInfo.NickName}] playerUId {playerUid} - login {login} - text {text} - isRegisteredCmd {isRegisteredCmd}");
 
                 if (text.Trim().StartsWith('/'))
                 {
@@ -161,24 +142,23 @@ namespace BTMC.Core
                         return;
                     }
 
-                    var command = InstantiateCommandFromName(_serviceProvider, args[0]);
-                    _logger.LogDebug($"Command {command} for {args[0]}");
-                    command.Init(_client, playerUid, login, args[1..]);
-                    await command.ExecuteAsync();
+                    var sw = new Stopwatch();
+                    sw.Start();
+                    await RunCommandAsync(args[0], _client, playerUid, login, args[1..]);
+                    sw.Stop();
+                    _logger.LogInformation("Running command '{}' took {}ms", args[0], sw.ElapsedMilliseconds);
                 }
                 else
                 {
-                    await _client.ChatSendServerMessageAsync(playerInfo.NickName + "$g$z: " + text.Trim());
+                    await _eventSystem.DispatchAsync(new PlayerChatEvent(_client, login, playerUid, text));
                 }
-
-                return;
             };
 
             _logger.LogInformation("Enabling callbacks..");
             await _client.EnableCallbacksAsync(true);
 
-            _logger.LogInformation("Enabling manual routing..");
-            await _client.CallOrFaultAsync("ChatEnableManualRouting", true, false);
+            //_logger.LogInformation("Enabling manual routing..");
+            //await _client.CallOrFaultAsync("ChatEnableManualRouting", true, false);
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)
@@ -186,6 +166,31 @@ namespace BTMC.Core
             await _client.DisconnectAsync();
         }
 
+        private Task RunCommandAsync(string name, GbxRemoteClient client, int playerUid, string playerLogin, string[] args)
+        {
+            var commandDefinition = _commandRepository.Commands[name];
+
+            switch (commandDefinition.Type)
+            {
+                case CommandDefinitionType.Command:
+                    var command = InstantiateCommandFromName(_serviceProvider, name);
+                    //_logger.LogDebug($"Command {command} for {name}");
+                    command.Init(_client, playerUid, playerLogin, args);
+                    return command.ExecuteAsync();
+                case CommandDefinitionType.BasicCommand:
+                    return commandDefinition.BasicCommandHandler.Invoke(new CommandArgs
+                    {
+                        Args = args,
+                        Client = client,
+                        PlayerUid = playerUid,
+                        PlayerLogin = playerLogin
+                    });
+                default:
+                    _logger.LogCritical("Invalid CommandDefinitionType {}", commandDefinition.Type);
+                    throw new Exception($"Invalid CommandDefinitionType {commandDefinition.Type}");
+            }
+        }
+        
         private CommandBase InstantiateCommandFromName(IServiceProvider serviceProvider, string Name)
         {
             if (!_commandRepository.Commands.ContainsKey(Name))
@@ -193,7 +198,7 @@ namespace BTMC.Core
                 throw new Exception($"Tried to instante Command with name {Name} but no such command exists");
             }
 
-            var command = InstantiateCommandFromType(serviceProvider, _commandRepository.Commands[Name]);
+            var command = InstantiateCommandFromType(serviceProvider, _commandRepository.Commands[Name].CommandClassType);
             return command;
         }
 
@@ -209,7 +214,7 @@ namespace BTMC.Core
             {
                 foreach (var t in assembly.GetTypes())
                 {
-                    if (t.GetCustomAttributes(typeof(CommandAttribute), true).Length > 0)
+                    if (t.GetCustomAttributes(typeof(CommandAttribute), false).Length > 0)
                     {
                         var attribute = t.GetCustomAttribute<CommandAttribute>();
 
@@ -218,8 +223,16 @@ namespace BTMC.Core
                             throw new Exception($"Cannot add command '{attribute.Name}' as there is a already a command/alias with that name");
                         }
 
-                        _commandRepository.Commands[attribute.Name] = t;
-                        _commandRepository.AllCommands[attribute.Name] = t;
+                        _commandRepository.Commands[attribute.Name] = new CommandDefinition
+                        {
+                            Type = CommandDefinitionType.Command,
+                            CommandClassType = t,
+                        };
+                        _commandRepository.AllCommands[attribute.Name] = new CommandDefinition
+                        {
+                            Type = CommandDefinitionType.Command,
+                            CommandClassType = t,
+                        };
 
                         if (!string.IsNullOrEmpty(attribute.Alias))
                         {
@@ -232,24 +245,113 @@ namespace BTMC.Core
                                     throw new Exception($"Cannot add alias '{trimmed}' as there is a already a command/alias with that name");
                                 }
 
-                                _commandRepository.Commands[alias.Trim()] = t;
+                                _commandRepository.Commands[alias.Trim()] = new CommandDefinition
+                                {
+                                    Type = CommandDefinitionType.Command,
+                                    CommandClassType = t,
+                                };
                             }
+                        }
+                    }
+                    else if (t.GetCustomAttributes(typeof(PluginAttribute), false).Length > 0)
+                    {
+                        var pluginInstance = _serviceProvider.GetService(t);
+                        var pluginAttribute = t.GetCustomAttribute<PluginAttribute>(false);
+
+                        foreach (var method in t.GetMethods())
+                        {
+                            var attribute = method.GetCustomAttribute<CommandAttribute>();
+                            if (attribute == null)
+                            {
+                                continue;
+                            }
+
+                            var handler = Delegate.CreateDelegate(typeof(BasicCommandHandler), pluginInstance, method, false);
+                            if (handler == null)
+                            {
+                                // signature does not match, we were not able to create a delegate
+                                _logger.LogError(
+                                    "{}: Failed to register command '{}'. Invalid method signature. Expected '{}', found '{}'",
+                                    pluginAttribute.Name,
+                                    attribute.Name,
+                                    typeof(BasicCommandHandler).GetMethods()[0].ToString(),
+                                    method.ToString()
+                                );
+                                continue;
+                            }
+                            
+                            if (_commandRepository.Commands.ContainsKey(attribute.Name))
+                            {
+                                throw new Exception($"Cannot add command '{attribute.Name}' as there is a already a command/alias with that name");
+                            }
+                            
+                            
+                            _commandRepository.Commands[attribute.Name] = new CommandDefinition
+                            {
+                                Type = CommandDefinitionType.BasicCommand,
+                                BasicCommandHandler = (BasicCommandHandler) handler,
+                            };
+                            _commandRepository.AllCommands[attribute.Name] = new CommandDefinition
+                            {
+                                Type = CommandDefinitionType.BasicCommand,
+                                BasicCommandHandler = (BasicCommandHandler) handler,
+                            };
+
+                            if (!string.IsNullOrEmpty(attribute.Alias))
+                            {
+                                var aliases = attribute.Alias.Split(',');
+                                foreach (var alias in aliases)
+                                {
+                                    var trimmed = alias.Trim();
+                                    if (_commandRepository.Commands.ContainsKey(trimmed))
+                                    {
+                                        throw new Exception($"Cannot add alias '{trimmed}' as there is a already a command/alias with that name");
+                                    }
+
+                                    _commandRepository.Commands[alias.Trim()] = new CommandDefinition
+                                    {
+                                        Type = CommandDefinitionType.BasicCommand,
+                                        BasicCommandHandler = (BasicCommandHandler) handler,
+                                    };
+                                }
+                            }
+                            _logger.LogInformation("{}: Registered basic command '{}'", pluginAttribute.Name, attribute.Name);
                         }
                     }
                 }
             }
         }
 
+        private Delegate CreateEventHandlerDelegate<TEvent>(PluginAttribute pluginAttribute, object pluginInstance, MethodInfo method) where TEvent : Event
+        {
+            var handler = Delegate.CreateDelegate(typeof(EventHandler<TEvent>), pluginInstance, method, false);
+            if (handler == null)
+            {
+                _logger.LogError(
+                    "{}: Failed to register event handler '{}'. Invalid method signature. Expected '{}', found '{}'",
+                    pluginAttribute.Name,
+                    method.Name,
+                    typeof(EventHandler<TEvent>).GetMethods()[0].ToString(),
+                    method.ToString()
+                );
+
+                return null;
+            }
+
+            return handler;
+        }
+        
         private void RegisterAllEventHandlers()
         {
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
                 foreach (var t in assembly.DefinedTypes)
                 {
-                    if (t != typeof(IPlugin) && t.IsAssignableTo(typeof(IPlugin)))
+                    if (t.GetCustomAttributes(typeof(PluginAttribute), false).Length > 0)
                     {
-                        var pluginInstance = (IPlugin) _serviceProvider.GetService(t.AsType());
-                        _logger.LogInformation("Loaded plugin: {} ({})", pluginInstance.Name, pluginInstance.Version);
+                        var pluginInstance = _serviceProvider.GetService(t.AsType());
+                        var pluginAttribute = t.GetCustomAttribute<PluginAttribute>();
+                        _logger.LogInformation("Loading plugin: {} ({})...", pluginAttribute.Name, pluginAttribute.Version);
 
                         foreach (var method in t.GetMethods())
                         {
@@ -258,13 +360,29 @@ namespace BTMC.Core
                             {
                                 continue;
                             }
+
+                            Delegate handler;
+                            switch (attribute.Type)
+                            {
+                                case EventType.Join:
+                                    handler = CreateEventHandlerDelegate<PlayerJoinEvent>(pluginAttribute, pluginInstance, method);
+                                    break;
+                                case EventType.Chat:
+                                    handler = CreateEventHandlerDelegate<PlayerChatEvent>(pluginAttribute, pluginInstance, method);
+                                    break;
+                                default:
+                                    throw new Exception($"Invalid EventType enum: {attribute.Type}");
+                            }
                             
-                            // TODO: typecheck method arguments
+                            if (handler == null)
+                            {
+                                continue;
+                            }
                             
-                            var handler = Delegate.CreateDelegate(typeof(EventHandler<PlayerJoinEvent>), pluginInstance, method);
                             _eventSystem.RegisterEventHandler(attribute.Type, handler);
-                            _logger.LogInformation("{}: Registered event handler {} for event {}", pluginInstance.Name, method.Name, attribute.Type);
+                            _logger.LogInformation("{}: Registered event handler {} for event {}", pluginAttribute.Name, method.Name, attribute.Type);
                         }
+                        _logger.LogInformation("Loaded plugin: {} ({})", pluginAttribute.Name, pluginAttribute.Version);
                     }
                 }
             }
@@ -287,7 +405,7 @@ namespace BTMC.Core
 
             foreach (var t in all)
             {
-                if (t != typeof(IPlugin) && t.IsAssignableTo(typeof(IPlugin)))
+                if (t.GetCustomAttributes(typeof(PluginAttribute), false).Length > 0)
                 {
                     Console.WriteLine("Found plugin: {0}", t.FullName);
                     services.AddSingleton(t.AsType());

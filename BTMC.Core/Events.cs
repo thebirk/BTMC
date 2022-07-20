@@ -12,7 +12,21 @@ namespace BTMC.Core
         Disconnect,
         Chat,
         Finish,
+        Load,
+        Unload,
         Custom,
+    }
+    
+    [JetBrains.Annotations.MeansImplicitUse]
+    [AttributeUsage(AttributeTargets.Method)]
+    public class EventHandlerAttribute : Attribute
+    {
+        public EventType Type { get; set; }
+
+        public EventHandlerAttribute(EventType type)
+        {
+            Type = type;
+        }
     }
     
     public class Event
@@ -43,12 +57,19 @@ namespace BTMC.Core
             IsSpectator = isSpectator;
         }
     }
-    
-    public class PlayerChatArgs
+
+    public class PlayerChatEvent : Event
     {
         public string Login { get; set; }
-        public string PlayerUid { get; set; }
+        public int PlayerUid { get; set; }
         public string Message { get; set; }
+
+        public PlayerChatEvent(GbxRemoteClient client, string login, int playerUid, string message) : base(EventType.Chat, client)
+        {
+            Login = login;
+            PlayerUid = playerUid;
+            Message = message;
+        }
     }
 
     public class PlayerFinishArgs
@@ -71,7 +92,10 @@ namespace BTMC.Core
 
     public class EventSystem
     {
+        // How this ended up like this I'm not quite sure of. It came about after a lot experimentation
+        // about how to keep as much type information as possible.
         private readonly EventDispatcher<PlayerJoinEvent> _playerJoinDispatcher = new();
+        private readonly EventDispatcher<PlayerChatEvent> _playerChatDispatcher = new();
         private readonly EventDispatcher<CustomEvent> _customDispatcher = new();
 
         public Task DispatchAsync(Event e)
@@ -80,6 +104,8 @@ namespace BTMC.Core
             {
                 case EventType.Join:
                     return _playerJoinDispatcher.DispatchAsync((PlayerJoinEvent)e);
+                case EventType.Chat:
+                    return _playerChatDispatcher.DispatchAsync((PlayerChatEvent)e);
                 case EventType.Custom:
                     return _customDispatcher.DispatchAsync((CustomEvent)e);
             }
@@ -96,6 +122,9 @@ namespace BTMC.Core
                     break;
                 case EventType.Custom:
                     _customDispatcher.RegisterEventHandler((EventHandler<CustomEvent>) handler);
+                    break;
+                case EventType.Chat:
+                    _playerChatDispatcher.RegisterEventHandler((EventHandler<PlayerChatEvent>) handler);
                     break;
             }
         }

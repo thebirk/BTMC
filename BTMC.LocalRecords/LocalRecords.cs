@@ -22,7 +22,8 @@ namespace BTMC.LocalRecords
         public string ConnectionString { get; set; }
     }
 
-    public class LocalRecords : IPlugin
+    [Plugin("LocalRecords", "1.0.0")]
+    public class LocalRecords
     {
         public string Name => "LocalRecords";
         public string Version => "1.0.0";
@@ -48,9 +49,9 @@ namespace BTMC.LocalRecords
         }
 
         [EventHandler(EventType.Chat)]
-        public void PlayerChat(PlayerChatArgs args)
+        public void PlayerChat(PlayerChatEvent e)
         {
-            _logger.LogInformation($"PlayerChat: {args.PlayerUid} ({args.Login}): {args.Message}");
+            _logger.LogInformation($"PlayerChat: {e.PlayerUid} ({e.Login}): {e.Message}");
         }
 
         [EventHandler(EventType.Finish)]
