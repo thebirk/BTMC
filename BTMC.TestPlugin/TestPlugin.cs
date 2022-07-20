@@ -136,7 +136,7 @@ namespace BTMC.TestPlugin
         }
     }
 
-    [Command("notice")]
+    [Command("notice", "n", "not")]
     public class NoticeCommand : CommandBase
     {
         private readonly AdminController _adminController;

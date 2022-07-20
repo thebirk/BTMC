@@ -234,10 +234,9 @@ namespace BTMC.Core
                             CommandClassType = t,
                         };
 
-                        if (!string.IsNullOrEmpty(attribute.Alias))
+                        if (attribute.Aliases != null)
                         {
-                            var aliases = attribute.Alias.Split(',');
-                            foreach (var alias in aliases)
+                            foreach (var alias in attribute.Aliases)
                             {
                                 var trimmed = alias.Trim();
                                 if (_commandRepository.Commands.ContainsKey(trimmed))
@@ -297,10 +296,9 @@ namespace BTMC.Core
                                 BasicCommandHandler = (BasicCommandHandler) handler,
                             };
 
-                            if (!string.IsNullOrEmpty(attribute.Alias))
+                            if (attribute.Aliases != null)
                             {
-                                var aliases = attribute.Alias.Split(',');
-                                foreach (var alias in aliases)
+                                foreach (var alias in attribute.Aliases)
                                 {
                                     var trimmed = alias.Trim();
                                     if (_commandRepository.Commands.ContainsKey(trimmed))
@@ -315,6 +313,7 @@ namespace BTMC.Core
                                     };
                                 }
                             }
+                            
                             _logger.LogInformation("{}: Registered basic command '{}'", pluginAttribute.Name, attribute.Name);
                         }
                     }

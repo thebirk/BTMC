@@ -60,7 +60,7 @@ namespace BTMC.Core.Commands
         }
     }
 
-    [Command("players", Alias = "list,online")]
+    [Command("players", "list", "online")]
     class PlayersCommand : CommandBase
     {
         private readonly ILogger<PlayersCommand> _logger;

@@ -69,7 +69,7 @@ namespace BTMC.LocalRecords
         }
     }
 
-    [Command("toprecs", Alias = "recs")]
+    [Command("toprecs", "recs")]
     public class TopRecsCommand : CommandBase
     {
         // All loaded Plugins gets registered as singleton services

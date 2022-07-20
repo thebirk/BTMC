@@ -19,11 +19,17 @@ namespace BTMC.Core.Commands
         /// <example>
         /// <code>list,all,online</code>
         /// </example>
-        public string Alias { get; set; }
+        public string[] Aliases { get; set; }
 
-        public CommandAttribute(string Name)
+        public CommandAttribute(string name)
         {
-            this.Name = Name;
+            Name = name;
+        }
+
+        public CommandAttribute(string name, params string[] aliases)
+        {
+            Name = name;
+            Aliases = aliases;
         }
     }
 
