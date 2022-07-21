@@ -19,6 +19,12 @@ namespace BTMC.TestPlugin
         public bool IsInOfficialMode;
         public int LadderRanking;
     }
+    
+    [Settings("test")]
+    public class TestSettings
+    {
+    
+    }
 
     [Plugin("Test Plugin", "0.0.1")]
     public class TestPlugin
@@ -39,7 +45,7 @@ namespace BTMC.TestPlugin
         [EventHandler(EventType.Join)]
         public async Task<bool> OnJoin(PlayerJoinEvent e)
         {
-            _logger.LogInformation("login: {}, isSpectator: {}", e.Login, e.IsSpectator);
+            _logger.LogInformation("login: {} , isSpectator: {}", e.Login, e.IsSpectator);
             var a = await e.Client.CallOrFaultAsync("GetPlayerInfo", e.Login, 0);
             var playerInfo = (PlayerInfo)XmlRpcTypes.ToNativeValue<PlayerInfo>(a);
             await e.Client.ChatSendServerMessageAsync($"{playerInfo.NickName} has {(e.IsSpectator ? "joined as a spectator" : "joined the server")}");
@@ -64,20 +70,20 @@ namespace BTMC.TestPlugin
         {
             if (!_adminController.IsAdmin(PlayerLogin))
             {
-                await _chatController.SendMessageToLogin(Client, PlayerLogin, "You do not have access to this command");
+                await _chatController.SendMessageToLogin(Client, PlayerLogin, "You do not have access to this command", clubtag: "NOTICE");
                 //await Client.ChatSendServerMessageToLoginAsync("You do not have access to this command", PlayerLogin);
                 return;
             }
             
             if (Args.Length == 0)
             {
-                await _chatController.SendMessageToLogin(Client, PlayerLogin, "Usage: /notice <message>");
+                await _chatController.SendMessageToLogin(Client, PlayerLogin, "Usage: /notice <message>", clubtag: "NOTICE");
                 //await Client.ChatSendServerMessageToLoginAsync("Usage: /notice <message>", PlayerLogin);
                 return;
             }
 
             //await Client.ChatSendServerMessageAsync(Args[0]);
-            await _chatController.SendMessage(Client, Args[0]);
+            await _chatController.SendMessage(Client, Args[0], clubtag: "NOTICE");
         }
     }
 }

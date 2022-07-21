@@ -96,14 +96,21 @@ namespace BTMC.Core.Commands
         }
     }
 
-    [Command("run")]
-    class RunCommand : CommandBase
+    [Command("rpc")]
+    class RpcCommand : CommandBase
     {
+        private readonly ChatController _chatController;
+
+        public RpcCommand(ChatController chatController)
+        {
+            _chatController = chatController;
+        }
+        
         public override async Task ExecuteAsync()
         {
             if (Args.Length < 1)
             {
-                await SendMessageAsync("Run - Usage: /run method [options..]");
+                await _chatController.SendMessageToLogin(Client, PlayerLogin, "Usage: /rpc method [options..]", clubtag: "rpc");
                 return;
             }
 
@@ -129,12 +136,12 @@ namespace BTMC.Core.Commands
 
             if (response.IsFault)
             {
-                await SendMessageAsync("Run - Fault - " + response.RawMessage);
+                await _chatController.SendMessageToLogin(Client, PlayerLogin, "Fault - " + response.RawMessage, clubtag: "rpc");
                 return;
             }
 
-            await SendMessageAsync("Run - " + string.Join(" ", Args));
-            await SendMessageAsync(response.RawMessage);
+            await _chatController.SendMessageToLogin(Client, PlayerLogin, string.Join(" ", Args), clubtag: "rpc");
+            await _chatController.SendMessageToLogin(Client, PlayerLogin, response.RawMessage, clubtag: "rpc");
         }
     }
 }

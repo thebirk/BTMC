@@ -56,9 +56,19 @@ namespace BTMC.Core
         public Dictionary<string, CommandDefinition> Commands { get; private set; } = new Dictionary<string, CommandDefinition>();
     }
 
+    [JetBrains.Annotations.MeansImplicitUse]
     [AttributeUsage(AttributeTargets.Class)]
     public class SettingsAttribute : Attribute
     {
+        /// <summary>
+        /// The settings will be loaded from appsettings.json using this subkey
+        /// </summary>
+        public string Key { get; set; }
+
+        public SettingsAttribute(string key)
+        {
+            Key = key;
+        }
     }
 
     public class GbxRemoteService : IHostedService
@@ -100,11 +110,7 @@ namespace BTMC.Core
                 throw new Exception(error);
             }
             _logger.LogInformation($"Connected to client {settings.Host}:{settings.Port}");
-            
-            //await _client.SetApiVersionAsync("2013-04-16");
-            //await _client.SetApiVersionAsync("2019-03-02");
-            //_logger.LogInformation("{}", (await _client.GetVersionAsync()).ApiVersion);
-            
+
             if (!await _client.AuthenticateAsync(settings.SuperAdmin.Name, settings.SuperAdmin.Password))
             {
                 var error = $"Failed to login to client {settings.Host}:{settings.Port}";
@@ -113,6 +119,11 @@ namespace BTMC.Core
             }
             _logger.LogInformation($"Authenticated for client {settings.Host}:{settings.Port}");
 
+            await _client.SetApiVersionAsync("2022-03-21");
+            //await _client.SetApiVersionAsync("2013-04-16");
+            //await _client.SetApiVersionAsync("2019-03-02");
+            //_logger.LogInformation("{}", (await _client.GetVersionAsync()).Name);
+            
             _client.OnPlayerConnect += async (string login, bool isSpectator) =>
             {
                 _logger.LogInformation("Player disconnected: {}, isSpectator: {}", login, isSpectator);
@@ -160,6 +171,9 @@ namespace BTMC.Core
                     await _eventSystem.DispatchAsync(new PlayerChatEvent(_client, login, playerUid, text));
                 }
             };
+
+            // Run Load event before enabling callbacks
+            await _eventSystem.DispatchAsync(new LoadEvent(_client));
 
             _logger.LogInformation("Enabling callbacks..");
             await _client.EnableCallbacksAsync(true);
@@ -370,14 +384,20 @@ namespace BTMC.Core
                             Delegate handler;
                             switch (attribute.Type)
                             {
-                                case EventType.Join:
-                                    handler = CreateEventHandlerDelegate<PlayerJoinEvent>(pluginAttribute, pluginInstance, method);
-                                    break;
                                 case EventType.Chat:
                                     handler = CreateEventHandlerDelegate<PlayerChatEvent>(pluginAttribute, pluginInstance, method);
                                     break;
+                                case EventType.Join:
+                                    handler = CreateEventHandlerDelegate<PlayerJoinEvent>(pluginAttribute, pluginInstance, method);
+                                    break;
                                 case EventType.Disconnect:
                                     handler = CreateEventHandlerDelegate<PlayerDisconnectEvent>(pluginAttribute, pluginInstance, method);
+                                    break;
+                                case EventType.Custom:
+                                    handler = CreateEventHandlerDelegate<CustomEvent>(pluginAttribute, pluginInstance, method);
+                                    break;
+                                case EventType.Load:
+                                    handler = CreateEventHandlerDelegate<LoadEvent>(pluginAttribute, pluginInstance, method);
                                     break;
                                 default:
                                     throw new Exception($"Invalid EventType enum: {attribute.Type}");
@@ -400,7 +420,7 @@ namespace BTMC.Core
 
     public class Program
     {
-        static void RegisterAllPlugins(IServiceCollection services)
+        private static void RegisterAllPlugins(IServiceCollection services)
         {
             var all = Assembly.GetExecutingAssembly().DefinedTypes.ToList();
 
@@ -422,6 +442,23 @@ namespace BTMC.Core
             }
         }
 
+        private static void RegisterAllSettings(IServiceCollection services)
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                foreach (var t in assembly.GetTypes())
+                {
+                    if (t.GetCustomAttributes(typeof(SettingsAttribute), false).Length > 0)
+                    {
+                        var attribute = t.GetCustomAttribute<SettingsAttribute>();
+                        var key = attribute.Key ?? t.Name;
+
+                        
+                    }
+                }
+            }
+        }
+
         public static void Start(string[] args)
         {
             CreateHostBuilder(args).Build().Run();
@@ -432,7 +469,7 @@ namespace BTMC.Core
             return Host.CreateDefaultBuilder(args)
                 .ConfigureAppConfiguration(builder =>
                 {
-
+                    
                 })
                 .ConfigureServices(services =>
                 {

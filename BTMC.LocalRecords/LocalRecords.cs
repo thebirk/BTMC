@@ -15,7 +15,7 @@ namespace BTMC.LocalRecords
         Postgres,
     }
 
-    [Settings]
+    [Settings("LocalRecords")]
     public class LocalRecordsSettings
     {
         public DbType DbType { get; set; }

@@ -8,12 +8,33 @@ namespace BTMC.Core
 {
     public enum EventType
     {
+        /// <summary>
+        /// Dispatched when a player joins the server
+        /// </summary>
         Join,
+        /// <summary>
+        /// Dispatches when a player disconnects from the server
+        /// </summary>
         Disconnect,
+        /// <summary>
+        /// Dispatched when a player send a chat message
+        /// </summary>
         Chat,
+        /// <summary>
+        /// Dispatched when a player finished a run
+        /// </summary>
         Finish,
+        /// <summary>
+        /// Dispatched when the plugin is loaded
+        /// </summary>
         Load,
+        /// <summary>
+        /// Dispatched when the plugin is unloaded
+        /// </summary>
         Unload,
+        /// <summary>
+        /// Custom event dispatched by plugins themselves. Useful for inter-plugin communication
+        /// </summary>
         Custom,
     }
     
@@ -84,6 +105,13 @@ namespace BTMC.Core
         }
     }
 
+    public class LoadEvent : Event
+    {
+        public LoadEvent(GbxRemoteClient client) : base(EventType.Load, client)
+        {
+        }
+    }
+
     public class PlayerFinishArgs
     {
         public string PlayerUid { get; set; }
@@ -110,6 +138,7 @@ namespace BTMC.Core
         private readonly EventDispatcher<PlayerDisconnectEvent> _playerDisconnectDispatcher = new();
         private readonly EventDispatcher<PlayerChatEvent> _playerChatDispatcher = new();
         private readonly EventDispatcher<CustomEvent> _customDispatcher = new();
+        private readonly EventDispatcher<LoadEvent> _loadDispatcher = new();
 
         public Task DispatchAsync(Event e)
         {
@@ -123,6 +152,8 @@ namespace BTMC.Core
                     return _playerChatDispatcher.DispatchAsync((PlayerChatEvent)e);
                 case EventType.Custom:
                     return _customDispatcher.DispatchAsync((CustomEvent)e);
+                case EventType.Load:
+                    return _loadDispatcher.DispatchAsync((LoadEvent)e);
             }
 
             return Task.CompletedTask;
@@ -143,6 +174,9 @@ namespace BTMC.Core
                     break;
                 case EventType.Chat:
                     _playerChatDispatcher.RegisterEventHandler((EventHandler<PlayerChatEvent>) handler);
+                    break;
+                case EventType.Load:
+                    _loadDispatcher.RegisterEventHandler((EventHandler<LoadEvent>) handler);
                     break;
             }
         }
