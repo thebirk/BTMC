@@ -14,13 +14,13 @@ namespace BTMC.Core
 {
     public class PlayerInfo
     {
-        public string Login { get; set; }
-        public string NickName { get; set; }
-        public int PlayerId { get; set; }
-        public int TeamId { get; set; }
-        public bool IsSpectator { get; set; }
-        public bool IsInOfficialMode { get; set; }
-        public int LadderRanking { get; set; }
+        public string Login;
+        public string NickName;
+        public int PlayerId;
+        public int TeamId;
+        public bool IsSpectator;
+        public bool IsInOfficialMode;
+        public int LadderRanking;
 
         public PlayerInfo()
         {
@@ -45,7 +45,7 @@ namespace BTMC.Core
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string Text { get; set; }
     }
-    
+
     [Plugin("ChatController", "0.0.1")]
     public class ChatController
     {
@@ -63,7 +63,7 @@ namespace BTMC.Core
             // TODO: On a future Load event fetch all players currently on the server and add them to the list
         }
 
-        public async Task SendMessage(GbxRemoteClient client, string message, string senderlogin = null, string nickname = null, string clubtag = null)
+        public async Task SendMessageAsync(GbxRemoteClient client, string message, string senderlogin = null, string nickname = null, string clubtag = null)
         {
             var msg = new BetterChatJson
             {
@@ -84,7 +84,7 @@ namespace BTMC.Core
             }
         }
         
-        public async Task SendMessageToLogin(GbxRemoteClient client, string login, string message, string senderlogin = null, string nickname = null, string clubtag = null)
+        public async Task SendMessageToLoginAsync(GbxRemoteClient client, string login, string message, string senderlogin = null, string nickname = null, string clubtag = null)
         {
             var msg = new BetterChatJson
             {
@@ -111,6 +111,10 @@ namespace BTMC.Core
             var a = await e.Client.CallOrFaultAsync("GetPlayerList", 0, 0, 0);
             var playerList = XmlRpcTypes.ToNativeArray<PlayerInfo>((XmlRpcArray) a);
             
+            _logger.LogInformation("{}", JsonSerializer.Serialize(playerList, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            }));
             _normalChatLogins.AddRange(playerList.Select(x => x.Login));
 
             return false;
@@ -124,6 +128,7 @@ namespace BTMC.Core
             
             var a = await e.Client.CallOrFaultAsync("GetPlayerInfo", e.Login, 0);
             var playerInfo = (PlayerInfo)XmlRpcTypes.ToNativeValue<PlayerInfo>(a);
+
             var msg = new BetterChatJson
             {
                 Login = e.Login,
@@ -138,7 +143,7 @@ namespace BTMC.Core
 
             if (_normalChatLogins.Count > 0)
             {
-                await e.Client.ChatSendServerMessageToLoginAsync(playerInfo.NickName + "$g$z: " + e.Message.Trim(), string.Join(',', _normalChatLogins));
+                await e.Client.ChatSendServerMessageToLoginAsync("[$<" + playerInfo.NickName + "$>] " + e.Message.Trim(), string.Join(',', _normalChatLogins));
             }
 
             return true;

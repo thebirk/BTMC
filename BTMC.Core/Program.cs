@@ -14,7 +14,11 @@ using System;
 using System.Diagnostics;
 using System.Diagnostics.Eventing.Reader;
 using System.Linq;
+using GbxRemoteNet.Structs;
+using GbxRemoteNet.XmlRpc.Packets;
 using GbxRemoteNet.XmlRpc.Types;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace BTMC.Core
 {
@@ -135,6 +139,83 @@ namespace BTMC.Core
                 _logger.LogInformation("Player disconnected: {}, reason: {}", login, reason);
                 await _eventSystem.DispatchAsync(new PlayerDisconnectEvent(_client, login, reason));
             };
+            
+            _client.OnPlayerInfoChanged += async (SPlayerInfo info) =>
+            {
+                
+            };
+
+            _client.OnModeScriptCallback += async (string method, JObject data) =>
+            {
+                _logger.LogInformation("ModeScriptCallback {}", method);
+
+                switch (method)
+                {
+                    case "Trackmania.Event.GiveUp":
+                        break;
+                    case "Trackmania.Event.WayPoint":
+                        var waypoint = data.ToObject<ModeScriptWaypoint>();
+
+                        if (waypoint.IsEndRace)
+                        {
+                            await _eventSystem.DispatchAsync(new FinishEvent(_client)
+                            {
+                                Login = waypoint.Login,
+                                Speed = waypoint.Speed,
+                                AccountId = waypoint.AccountId,
+                                BlockId = waypoint.BlockId,
+                                LapTime = waypoint.LapTime,
+                                RaceTime = waypoint.RaceTime,
+                                ServerTime = waypoint.Time,
+                                CheckpointInLap = waypoint.CheckpointInLap,
+                                CheckpointInRace = waypoint.CheckpointInRace,
+                                IsEndLap = waypoint.IsEndLap,
+                            });
+                        }
+                        else
+                        {
+                            await _eventSystem.DispatchAsync(new CheckpointEvent(_client)
+                            {
+                                Login = waypoint.Login,
+                                Speed = waypoint.Speed,
+                                AccountId = waypoint.AccountId,
+                                BlockId = waypoint.BlockId,
+                                LapTime = waypoint.LapTime,
+                                RaceTime = waypoint.RaceTime,
+                                ServerTime = waypoint.Time,
+                                CheckpointInLap = waypoint.CheckpointInLap,
+                                CheckpointInRace = waypoint.CheckpointInRace,
+                                IsEndLap = waypoint.IsEndLap,
+                            });
+                        }
+
+                        await _eventSystem.DispatchAsync(new WaypointEvent(_client)
+                        {
+                            Login = waypoint.Login,
+                            Speed = waypoint.Speed,
+                            AccountId = waypoint.AccountId,
+                            BlockId = waypoint.BlockId,
+                            LapTime = waypoint.LapTime,
+                            RaceTime = waypoint.RaceTime,
+                            ServerTime = waypoint.Time,
+                            CheckpointInLap = waypoint.CheckpointInLap,
+                            CheckpointInRace = waypoint.CheckpointInRace,
+                            IsEndLap = waypoint.IsEndLap,
+                            IsEndRace = waypoint.IsEndRace,
+                        });
+                        break;
+                }
+            };
+
+            _client.OnStatusChanged +=  async(int code, string name) =>
+            {
+                
+            };
+
+            _client.OnBeginMap += async (SMapInfo map) =>
+            {
+
+            };
 
             await _client.CallMethodAsync("system.listMethods");
 
@@ -177,6 +258,7 @@ namespace BTMC.Core
 
             _logger.LogInformation("Enabling callbacks..");
             await _client.EnableCallbacksAsync(true);
+            await _client.TriggerModeScriptEventArrayAsync("XmlRpc.EnableCallbacks", "true");
 
             //_logger.LogInformation("Enabling manual routing..");
             //await _client.CallOrFaultAsync("ChatEnableManualRouting", true, false);
@@ -398,6 +480,15 @@ namespace BTMC.Core
                                     break;
                                 case EventType.Load:
                                     handler = CreateEventHandlerDelegate<LoadEvent>(pluginAttribute, pluginInstance, method);
+                                    break;
+                                case EventType.Checkpoint:
+                                    handler = CreateEventHandlerDelegate<CheckpointEvent>(pluginAttribute, pluginInstance, method);
+                                    break;
+                                case EventType.Finish:
+                                    handler = CreateEventHandlerDelegate<FinishEvent>(pluginAttribute, pluginInstance, method);
+                                    break;
+                                case EventType.Waypoint:
+                                    handler = CreateEventHandlerDelegate<WaypointEvent>(pluginAttribute, pluginInstance, method);
                                     break;
                                 default:
                                     throw new Exception($"Invalid EventType enum: {attribute.Type}");

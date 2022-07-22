@@ -30,16 +30,34 @@ namespace BTMC.TestPlugin
     public class TestPlugin
     {
         private readonly ILogger<TestPlugin> _logger;
+        private readonly ChatController _chatController;
 
-        public TestPlugin(ILogger<TestPlugin> logger)
+        public TestPlugin(ILogger<TestPlugin> logger, ChatController chatController)
         {
             _logger = logger;
+            _chatController = chatController;
         }
 
         [Command("simple")]
         public async Task SimpleCommand(CommandArgs args)
         {
             await args.Client.ChatSendServerMessageToLoginAsync("simple command :)", args.PlayerLogin);
+        }
+
+        [EventHandler(EventType.Checkpoint)]
+        public async Task<bool> OnCheckpoint(CheckpointEvent e)
+        {
+            await _chatController.SendMessageToLoginAsync(e.Client, e.Login, $"CP: {e.CheckpointInRace + 1}, SPEED: {e.Speed*3.6:F0}", clubtag: "TIMER");
+
+            return false;
+        }
+
+        [EventHandler(EventType.Finish)]
+        public async Task<bool> OnFinish(FinishEvent e)
+        {
+            await _chatController.SendMessageToLoginAsync(e.Client, e.Login, $"FINISH, TIME: {TimeSpan.FromMilliseconds(e.RaceTime):hh\\:mm\\:ss\\.fff}, SPEED: {e.Speed*3.6:F0}", clubtag: "TIMER");
+
+            return false;
         }
 
         [EventHandler(EventType.Join)]
@@ -70,20 +88,17 @@ namespace BTMC.TestPlugin
         {
             if (!_adminController.IsAdmin(PlayerLogin))
             {
-                await _chatController.SendMessageToLogin(Client, PlayerLogin, "You do not have access to this command", clubtag: "NOTICE");
-                //await Client.ChatSendServerMessageToLoginAsync("You do not have access to this command", PlayerLogin);
+                await _chatController.SendMessageToLoginAsync(Client, PlayerLogin, "You do not have access to this command", clubtag: "NOTICE");
                 return;
             }
             
             if (Args.Length == 0)
             {
-                await _chatController.SendMessageToLogin(Client, PlayerLogin, "Usage: /notice <message>", clubtag: "NOTICE");
-                //await Client.ChatSendServerMessageToLoginAsync("Usage: /notice <message>", PlayerLogin);
+                await _chatController.SendMessageToLoginAsync(Client, PlayerLogin, "Usage: /notice <message>", clubtag: "NOTICE");
                 return;
             }
-
-            //await Client.ChatSendServerMessageAsync(Args[0]);
-            await _chatController.SendMessage(Client, Args[0], clubtag: "NOTICE");
+            
+            await _chatController.SendMessageAsync(Client, Args[0], clubtag: "NOTICE");
         }
     }
 }

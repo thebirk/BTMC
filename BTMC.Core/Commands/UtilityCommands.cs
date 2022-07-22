@@ -110,7 +110,7 @@ namespace BTMC.Core.Commands
         {
             if (Args.Length < 1)
             {
-                await _chatController.SendMessageToLogin(Client, PlayerLogin, "Usage: /rpc method [options..]", clubtag: "rpc");
+                await _chatController.SendMessageToLoginAsync(Client, PlayerLogin, "Usage: /rpc method [options..]", clubtag: "rpc");
                 return;
             }
 
@@ -136,12 +136,12 @@ namespace BTMC.Core.Commands
 
             if (response.IsFault)
             {
-                await _chatController.SendMessageToLogin(Client, PlayerLogin, "Fault - " + response.RawMessage, clubtag: "rpc");
+                await _chatController.SendMessageToLoginAsync(Client, PlayerLogin, "Fault - " + response.RawMessage, clubtag: "rpc");
                 return;
             }
 
-            await _chatController.SendMessageToLogin(Client, PlayerLogin, string.Join(" ", Args), clubtag: "rpc");
-            await _chatController.SendMessageToLogin(Client, PlayerLogin, response.RawMessage, clubtag: "rpc");
+            await _chatController.SendMessageToLoginAsync(Client, PlayerLogin, string.Join(" ", Args), clubtag: "rpc");
+            await _chatController.SendMessageToLoginAsync(Client, PlayerLogin, response.RawMessage, clubtag: "rpc");
         }
     }
 }

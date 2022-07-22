@@ -12,26 +12,42 @@ namespace BTMC.Core
         /// Dispatched when a player joins the server
         /// </summary>
         Join,
+        
         /// <summary>
         /// Dispatches when a player disconnects from the server
         /// </summary>
         Disconnect,
+        
         /// <summary>
         /// Dispatched when a player send a chat message
         /// </summary>
         Chat,
+        
         /// <summary>
         /// Dispatched when a player finished a run
         /// </summary>
         Finish,
+
+        /// <summary>
+        /// Dispatched when a player crosses a checkpoint
+        /// </summary>
+        Checkpoint,
+        
+        /// <summary>
+        /// Dispatched when a player crosses a waypoint (finish, CP, multi-lap)
+        /// </summary>
+        Waypoint,
+        
         /// <summary>
         /// Dispatched when the plugin is loaded
         /// </summary>
         Load,
+        
         /// <summary>
         /// Dispatched when the plugin is unloaded
         /// </summary>
         Unload,
+        
         /// <summary>
         /// Custom event dispatched by plugins themselves. Useful for inter-plugin communication
         /// </summary>
@@ -112,6 +128,80 @@ namespace BTMC.Core
         }
     }
 
+    public class CheckpointEvent : Event
+    {
+        public string Login { get; set; }
+        public string AccountId { get; set; }
+        /// <summary>
+        /// Speed in m/s
+        /// </summary>
+        public float Speed { get; set; }
+        public int RaceTime { get; set; }
+        public int LapTime { get; set; }
+        public int CheckpointInRace { get; set; }
+        public int CheckpointInLap { get; set; }
+        public string BlockId { get; set; }
+        /// <summary>
+        /// Server time when the checkpoint was crossed
+        /// </summary>
+        public int ServerTime { get; set; }
+        public bool IsEndLap { get; set; }
+        
+        
+        public CheckpointEvent(GbxRemoteClient client) : base(EventType.Checkpoint, client)
+        {
+        }
+    }
+
+    public class FinishEvent : Event
+    {
+        public string Login { get; set; }
+        public string AccountId { get; set; }
+        /// <summary>
+        /// Speed in m/s
+        /// </summary>
+        public float Speed { get; set; }
+        public int RaceTime { get; set; }
+        public int LapTime { get; set; }
+        public int CheckpointInRace { get; set; }
+        public int CheckpointInLap { get; set; }
+        public string BlockId { get; set; }
+        /// <summary>
+        /// Server time when the checkpoint was crossed
+        /// </summary>
+        public int ServerTime { get; set; }
+        public bool IsEndLap { get; set; }
+        
+        public FinishEvent(GbxRemoteClient client) : base(EventType.Finish, client)
+        {
+        }
+    }
+
+    public class WaypointEvent : Event
+    {
+        public string Login { get; set; }
+        public string AccountId { get; set; }
+        /// <summary>
+        /// Speed in m/s
+        /// </summary>
+        public float Speed { get; set; }
+        public int RaceTime { get; set; }
+        public int LapTime { get; set; }
+        public int CheckpointInRace { get; set; }
+        public int CheckpointInLap { get; set; }
+        public string BlockId { get; set; }
+        /// <summary>
+        /// Server time when the checkpoint was crossed
+        /// </summary>
+        public int ServerTime { get; set; }
+        public bool IsEndLap { get; set; }
+        public bool IsEndRace { get; set; }
+        
+        public WaypointEvent(GbxRemoteClient client) : base(EventType.Waypoint, client)
+        {
+        }
+    }
+
     public class PlayerFinishArgs
     {
         public string PlayerUid { get; set; }
@@ -139,6 +229,9 @@ namespace BTMC.Core
         private readonly EventDispatcher<PlayerChatEvent> _playerChatDispatcher = new();
         private readonly EventDispatcher<CustomEvent> _customDispatcher = new();
         private readonly EventDispatcher<LoadEvent> _loadDispatcher = new();
+        private readonly EventDispatcher<CheckpointEvent> _checkpointDispatcher = new();
+        private readonly EventDispatcher<FinishEvent> _finishDispatcher = new();
+        private readonly EventDispatcher<WaypointEvent> _waypointDispatcher = new();
 
         public Task DispatchAsync(Event e)
         {
@@ -154,6 +247,12 @@ namespace BTMC.Core
                     return _customDispatcher.DispatchAsync((CustomEvent)e);
                 case EventType.Load:
                     return _loadDispatcher.DispatchAsync((LoadEvent)e);
+                case EventType.Checkpoint:
+                    return _checkpointDispatcher.DispatchAsync((CheckpointEvent)e);
+                case EventType.Finish:
+                    return _finishDispatcher.DispatchAsync((FinishEvent)e);
+                case EventType.Waypoint:
+                    return _waypointDispatcher.DispatchAsync((WaypointEvent) e);
             }
 
             return Task.CompletedTask;
@@ -177,6 +276,15 @@ namespace BTMC.Core
                     break;
                 case EventType.Load:
                     _loadDispatcher.RegisterEventHandler((EventHandler<LoadEvent>) handler);
+                    break;
+                case EventType.Checkpoint:
+                    _checkpointDispatcher.RegisterEventHandler((EventHandler<CheckpointEvent>) handler);
+                    break;
+                case EventType.Finish:
+                    _finishDispatcher.RegisterEventHandler((EventHandler<FinishEvent>) handler);
+                    break;
+                case EventType.Waypoint:
+                    _waypointDispatcher.RegisterEventHandler((EventHandler<WaypointEvent>) handler);
                     break;
             }
         }
