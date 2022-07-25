@@ -8,6 +8,7 @@ namespace BTMC.Core
     {
         public string Name { get; set; }
         public string Version { get; set; }
+        public string Author { get; set; }
 
         public PluginAttribute(string name, string version)
         {

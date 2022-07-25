@@ -12,12 +12,12 @@ namespace BTMC.LocalRecords
     {
         static void Main(string[] args)
         {
-            var localRecords = new LocalRecords(
-                LoggerFactory.Create(config => { config.AddConsole();  }).CreateLogger<LocalRecords>(),
-                Options.Create(new LocalRecordsSettings {
-                    DbType = DbType.Postgres,
-                }
-            ));
+            //var localRecords = new LocalRecords(
+            //    LoggerFactory.Create(config => { config.AddConsole();  }).CreateLogger<LocalRecords>(),
+            //    Options.Create(new LocalRecordsSettings {
+            //        DbType = DbType.Postgres,
+            //    }
+            //));
         }
     }
 }

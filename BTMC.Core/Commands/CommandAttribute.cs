@@ -3,12 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using GbxRemoteNet;
 
 namespace BTMC.Core.Commands
 {
     [JetBrains.Annotations.MeansImplicitUse]
-    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
     public class CommandAttribute : Attribute
     {
         public string Name { get; set; }
@@ -35,7 +34,6 @@ namespace BTMC.Core.Commands
 
     public class CommandArgs
     {
-        public GbxRemoteClient Client { get; set; }
         public string PlayerLogin { get; set; }
         public int PlayerUid { get; set; }
         public string[] Args { get; set; }

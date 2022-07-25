@@ -85,12 +85,10 @@ namespace BTMC.Core
         /// Used as a hint for event handlers to determine what kind of action they should they  take.
         /// </summary>
         public bool Handled { get; set; }
-        public GbxRemoteClient Client { get; set; }
 
-        protected Event(EventType type, GbxRemoteClient client)
+        protected Event(EventType type)
         {
             Type = type;
-            Client = client;
         }
     }
 
@@ -99,7 +97,7 @@ namespace BTMC.Core
         public string Login { get; set; }
         public bool IsSpectator { get; set; }
         
-        public PlayerJoinEvent(GbxRemoteClient client, string login, bool isSpectator) : base(EventType.Join, client)
+        public PlayerJoinEvent(string login, bool isSpectator) : base(EventType.Join)
         {
             Login = login;
             IsSpectator = isSpectator;
@@ -112,7 +110,7 @@ namespace BTMC.Core
         public int PlayerUid { get; set; }
         public string Message { get; set; }
 
-        public PlayerChatEvent(GbxRemoteClient client, string login, int playerUid, string message) : base(EventType.Chat, client)
+        public PlayerChatEvent(string login, int playerUid, string message) : base(EventType.Chat)
         {
             Login = login;
             PlayerUid = playerUid;
@@ -125,7 +123,7 @@ namespace BTMC.Core
         public string Login { get; set; }
         public string Reason { get; set; }
 
-        public PlayerDisconnectEvent(GbxRemoteClient client, string login, string reason) : base(EventType.Disconnect, client)
+        public PlayerDisconnectEvent(string login, string reason) : base(EventType.Disconnect)
         {
             Login = login;
             Reason = reason;
@@ -134,7 +132,14 @@ namespace BTMC.Core
 
     public class LoadEvent : Event
     {
-        public LoadEvent(GbxRemoteClient client) : base(EventType.Load, client)
+        public LoadEvent() : base(EventType.Load)
+        {
+        }
+    }
+
+    public class UnloadEvent : Event
+    {
+        public UnloadEvent() : base(EventType.Unload)
         {
         }
     }
@@ -159,7 +164,7 @@ namespace BTMC.Core
         public bool IsEndLap { get; set; }
         
         
-        public CheckpointEvent(GbxRemoteClient client) : base(EventType.Checkpoint, client)
+        public CheckpointEvent() : base(EventType.Checkpoint)
         {
         }
     }
@@ -183,7 +188,7 @@ namespace BTMC.Core
         public int ServerTime { get; set; }
         public bool IsEndLap { get; set; }
         
-        public FinishEvent(GbxRemoteClient client) : base(EventType.Finish, client)
+        public FinishEvent() : base(EventType.Finish)
         {
         }
     }
@@ -208,7 +213,7 @@ namespace BTMC.Core
         public bool IsEndLap { get; set; }
         public bool IsEndRace { get; set; }
         
-        public WaypointEvent(GbxRemoteClient client) : base(EventType.Waypoint, client)
+        public WaypointEvent() : base(EventType.Waypoint)
         {
         }
     }
@@ -223,7 +228,7 @@ namespace BTMC.Core
         //TODO: parse
         public int Flags { get; set; }
         
-        public PlayerInfoEvent(GbxRemoteClient client, SPlayerInfo info) : base(EventType.PlayerInfo, client)
+        public PlayerInfoEvent(SPlayerInfo info) : base(EventType.PlayerInfo)
         {
             Login = info.Login;
             Nickname = info.NickName;
@@ -240,7 +245,7 @@ namespace BTMC.Core
         public string Answer { get; set; }
         public SEntryVal[] Entries { get; set; }
         
-        public ManialinkAnswerEvent(int playerUid, string login, string answer, SEntryVal[] entries, GbxRemoteClient client) : base(EventType.ManialinkAnswer, client)
+        public ManialinkAnswerEvent(int playerUid, string login, string answer, SEntryVal[] entries, GbxRemoteClient client) : base(EventType.ManialinkAnswer)
         {
             PlayerUid = playerUid;
             Login = login;
@@ -253,7 +258,7 @@ namespace BTMC.Core
     {
         public Guid Id { get; set; }
 
-        public CustomEvent(GbxRemoteClient client, Guid id) : base(EventType.Custom, client)
+        public CustomEvent(Guid id) : base(EventType.Custom)
         {
             Id = id;
         }
@@ -275,6 +280,7 @@ namespace BTMC.Core
         private readonly EventDispatcher<WaypointEvent> _waypointDispatcher = new();
         private readonly EventDispatcher<PlayerInfoEvent> _playerInfoDispatcher = new();
         private readonly EventDispatcher<ManialinkAnswerEvent> _manialinkAnswerDispatcher = new();
+        private readonly EventDispatcher<UnloadEvent> _unloadDispatcher = new();
 
         public Task DispatchAsync(Event e)
         {
@@ -300,6 +306,8 @@ namespace BTMC.Core
                     return _playerInfoDispatcher.DispatchAsync((PlayerInfoEvent) e);
                 case EventType.ManialinkAnswer:
                     return _manialinkAnswerDispatcher.DispatchAsync((ManialinkAnswerEvent) e);
+                case EventType.Unload:
+                    return _unloadDispatcher.DispatchAsync((UnloadEvent) e);
             }
 
             return Task.CompletedTask;
@@ -338,6 +346,9 @@ namespace BTMC.Core
                     break;
                 case EventType.ManialinkAnswer:
                     _manialinkAnswerDispatcher.RegisterEventHandler((EventHandler<ManialinkAnswerEvent>) handler);
+                    break;
+                case EventType.Unload:
+                    _unloadDispatcher.RegisterEventHandler((EventHandler<UnloadEvent>) handler);
                     break;
             }
         }

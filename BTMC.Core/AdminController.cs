@@ -29,6 +29,7 @@ namespace BTMC.Core
         }
     }
     
+    [Plugin("AdminController", "0.0.1")]
     public class AdminController
     {
         private readonly ILogger<AdminController> _logger;

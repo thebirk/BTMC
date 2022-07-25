@@ -84,8 +84,9 @@ namespace BTMC.Core
         private readonly IServiceProvider _serviceProvider;
         private readonly CommandRepository _commandRepository;
         private readonly EventSystem _eventSystem;
-
+        
         private GbxRemoteClient _client { get; set; }
+        public GbxRemoteClient Client => _client;
 
         public GbxRemoteService(ILogger<GbxRemoteService> logger, IConfiguration configuration, IServiceProvider serviceProvider, CommandRepository commandRepository)
         {
@@ -94,9 +95,6 @@ namespace BTMC.Core
             _serviceProvider = serviceProvider;
             _commandRepository = commandRepository;
             _eventSystem = new EventSystem();
-
-            RegisterAllCommands();
-            RegisterAllEventHandlers();
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
@@ -106,6 +104,9 @@ namespace BTMC.Core
 
             _logger.LogInformation($"Creating client for {settings.Host}:{settings.Port}");
             _client = new GbxRemoteClient(settings.Host, settings.Port);
+            
+            RegisterAllCommands();
+            RegisterAllEventHandlers();
 
             //await _client.LoginAsync(settings.SuperAdmin.Name, settings.SuperAdmin.Password);
 
@@ -133,13 +134,13 @@ namespace BTMC.Core
             _client.OnPlayerConnect += async (string login, bool isSpectator) =>
             {
                 _logger.LogInformation("Player disconnected: {}, isSpectator: {}", login, isSpectator);
-                await _eventSystem.DispatchAsync(new PlayerJoinEvent(_client, login, isSpectator));
+                await _eventSystem.DispatchAsync(new PlayerJoinEvent(login, isSpectator));
             };
 
             _client.OnPlayerDisconnect += async (string login, string reason) =>
             {
                 _logger.LogInformation("Player disconnected: {}, reason: {}", login, reason);
-                await _eventSystem.DispatchAsync(new PlayerDisconnectEvent(_client, login, reason));
+                await _eventSystem.DispatchAsync(new PlayerDisconnectEvent(login, reason));
             };
 
             _client.OnModeScriptCallback += async (string method, JObject data) =>
@@ -153,7 +154,7 @@ namespace BTMC.Core
 
                         if (waypoint.IsEndRace)
                         {
-                            await _eventSystem.DispatchAsync(new FinishEvent(_client)
+                            await _eventSystem.DispatchAsync(new FinishEvent()
                             {
                                 Login = waypoint.Login,
                                 Speed = waypoint.Speed,
@@ -169,7 +170,7 @@ namespace BTMC.Core
                         }
                         else
                         {
-                            await _eventSystem.DispatchAsync(new CheckpointEvent(_client)
+                            await _eventSystem.DispatchAsync(new CheckpointEvent()
                             {
                                 Login = waypoint.Login,
                                 Speed = waypoint.Speed,
@@ -184,7 +185,7 @@ namespace BTMC.Core
                             });
                         }
 
-                        await _eventSystem.DispatchAsync(new WaypointEvent(_client)
+                        await _eventSystem.DispatchAsync(new WaypointEvent()
                         {
                             Login = waypoint.Login,
                             Speed = waypoint.Speed,
@@ -205,19 +206,19 @@ namespace BTMC.Core
                 }
             };
 
-            _client.OnStatusChanged +=  async(int code, string name) =>
+            _client.OnStatusChanged += (int code, string name) =>
             {
-                
+                return Task.CompletedTask;
             };
 
-            _client.OnBeginMap += async (SMapInfo map) =>
+            _client.OnBeginMap += (SMapInfo map) =>
             {
-
+                return Task.CompletedTask;
             };
 
-            _client.OnPlayerInfoChanged += async (SPlayerInfo info) =>
+            _client.OnPlayerInfoChanged += (SPlayerInfo info) =>
             {
-                
+                return Task.CompletedTask;
             };
 
             _client.OnAnyCallback += (call, pars) =>
@@ -274,12 +275,12 @@ namespace BTMC.Core
                 }
                 else
                 {
-                    await _eventSystem.DispatchAsync(new PlayerChatEvent(_client, login, playerUid, text));
+                    await _eventSystem.DispatchAsync(new PlayerChatEvent(login, playerUid, text));
                 }
             };
 
             // Run Load event before enabling callbacks
-            await _eventSystem.DispatchAsync(new LoadEvent(_client));
+            await _eventSystem.DispatchAsync(new LoadEvent());
 
             _logger.LogInformation("Enabling callbacks..");
             await _client.EnableCallbacksAsync(true);
@@ -309,7 +310,6 @@ namespace BTMC.Core
                     return commandDefinition.BasicCommandHandler.Invoke(new CommandArgs
                     {
                         Args = args,
-                        Client = client,
                         PlayerUid = playerUid,
                         PlayerLogin = playerLogin
                     });
@@ -338,7 +338,9 @@ namespace BTMC.Core
 
         private void RegisterAllCommands()
         {
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+            var uniqueAssemblies = assemblies.GroupBy(x => x.FullName).Select(x => x.First()).ToList();
+            foreach (var assembly in uniqueAssemblies)
             {
                 foreach (var t in assembly.GetTypes())
                 {
@@ -521,6 +523,9 @@ namespace BTMC.Core
                                 case EventType.ManialinkAnswer:
                                     handler = CreateEventHandlerDelegate<ManialinkAnswerEvent>(pluginAttribute, pluginInstance, method);
                                     break;
+                                case EventType.Unload:
+                                    handler = CreateEventHandlerDelegate<UnloadEvent>(pluginAttribute, pluginInstance, method);
+                                    break;
                                 default:
                                     throw new Exception($"Invalid EventType enum: {attribute.Type}");
                             }
@@ -596,12 +601,10 @@ namespace BTMC.Core
                 .ConfigureServices(services =>
                 {
                     services.AddSingleton<CommandRepository>();
-                    services.AddHostedService<GbxRemoteService>();
-                    services.AddSingleton<AdminController>();
+                    services.AddSingleton<GbxRemoteService>();
+                    services.AddHostedService(provider => provider.GetService<GbxRemoteService>());
 
                     RegisterAllPlugins(services);
-
-                    services.BuildServiceProvider();
                 });
         }
     }

@@ -14,17 +14,13 @@ namespace BTMC.Core
 {
     public class PlayerInfo
     {
-        public string Login;
-        public string NickName;
-        public int PlayerId;
-        public int TeamId;
-        public bool IsSpectator;
-        public bool IsInOfficialMode;
-        public int LadderRanking;
-
-        public PlayerInfo()
-        {
-        }
+        public string Login { get;set; }
+        public string NickName { get;set; }
+        public int PlayerId { get;set; }
+        public int TeamId { get;set; }
+        public bool IsSpectator { get;set; }
+        public bool IsInOfficialMode { get;set; }
+        public int LadderRanking { get;set; }
     }
     
     public class BetterChatJson
@@ -50,20 +46,22 @@ namespace BTMC.Core
     public class ChatController
     {
         private readonly ILogger<ChatController> _logger;
+        private readonly GbxRemoteClient _client;
         private readonly List<string> _betterChatLogins;
         private readonly List<string> _normalChatLogins;
 
         private bool _chatEnabled = false;
 
-        public ChatController(ILogger<ChatController> logger)
+        public ChatController(ILogger<ChatController> logger, GbxRemoteService gbxRemoteService)
         {
             _logger = logger;
+            _client = gbxRemoteService.Client;
             _betterChatLogins = new List<string>();
             _normalChatLogins = new List<string>();
             // TODO: On a future Load event fetch all players currently on the server and add them to the list
         }
 
-        public async Task SendMessageAsync(GbxRemoteClient client, string message, string senderlogin = null, string nickname = null, string clubtag = null)
+        public async Task SendMessageAsync(string message, string senderlogin = null, string nickname = null, string clubtag = null)
         {
             var msg = new BetterChatJson
             {
@@ -75,16 +73,16 @@ namespace BTMC.Core
             
             if (_betterChatLogins.Count > 0)
             {
-                await client.ChatSendServerMessageToLoginAsync("CHAT_JSON:" + JsonSerializer.Serialize(msg), string.Join(',', _betterChatLogins));
+                await _client.ChatSendServerMessageToLoginAsync("CHAT_JSON:" + JsonSerializer.Serialize(msg), string.Join(',', _betterChatLogins));
             }
 
             if (_normalChatLogins.Count > 0)
             {
-                await client.ChatSendServerMessageToLoginAsync(msg.Text, string.Join(',', _normalChatLogins));
+                await _client.ChatSendServerMessageToLoginAsync(msg.Text, string.Join(',', _normalChatLogins));
             }
         }
         
-        public async Task SendMessageToLoginAsync(GbxRemoteClient client, string login, string message, string senderlogin = null, string nickname = null, string clubtag = null)
+        public async Task SendMessageToLoginAsync(string login, string message, string senderlogin = null, string nickname = null, string clubtag = null)
         {
             var msg = new BetterChatJson
             {
@@ -96,19 +94,19 @@ namespace BTMC.Core
             
             if (_betterChatLogins.Contains(login))
             {
-                await client.ChatSendServerMessageToLoginAsync("CHAT_JSON:" + JsonSerializer.Serialize(msg), login);
+                await _client.ChatSendServerMessageToLoginAsync("CHAT_JSON:" + JsonSerializer.Serialize(msg), login);
             }
 
             if (_normalChatLogins.Contains(login))
             {
-                await client.ChatSendServerMessageToLoginAsync(msg.Text, login);
+                await _client.ChatSendServerMessageToLoginAsync(msg.Text, login);
             }
         }
 
         [EventHandler(EventType.Load)]
         public async Task<bool> OnLoad(LoadEvent e)
         {
-            var a = await e.Client.CallOrFaultAsync("GetPlayerList", 0, 0, 0);
+            var a = await _client.CallOrFaultAsync("GetPlayerList", 0, 0, 0);
             var playerList = XmlRpcTypes.ToNativeArray<PlayerInfo>((XmlRpcArray) a);
             
             _logger.LogInformation("{}", JsonSerializer.Serialize(playerList, new JsonSerializerOptions
@@ -126,7 +124,7 @@ namespace BTMC.Core
             if (e.Handled) return false;
             if (!_chatEnabled) return false;
             
-            var a = await e.Client.CallOrFaultAsync("GetPlayerInfo", e.Login, 0);
+            var a = await _client.CallOrFaultAsync("GetPlayerInfo", e.Login, 0);
             var playerInfo = (PlayerInfo)XmlRpcTypes.ToNativeValue<PlayerInfo>(a);
 
             var msg = new BetterChatJson
@@ -138,12 +136,12 @@ namespace BTMC.Core
 
             if (_betterChatLogins.Count > 0)
             {
-                await e.Client.ChatSendServerMessageToLoginAsync("CHAT_JSON:" + JsonSerializer.Serialize(msg), string.Join(',', _betterChatLogins));
+                await _client.ChatSendServerMessageToLoginAsync("CHAT_JSON:" + JsonSerializer.Serialize(msg), string.Join(',', _betterChatLogins));
             }
 
             if (_normalChatLogins.Count > 0)
             {
-                await e.Client.ChatSendServerMessageToLoginAsync("[$<" + playerInfo.NickName + "$>] " + e.Message.Trim(), string.Join(',', _normalChatLogins));
+                await _client.ChatSendServerMessageToLoginAsync("[$<" + playerInfo.NickName + "$>] " + e.Message.Trim(), string.Join(',', _normalChatLogins));
             }
 
             return true;
@@ -180,22 +178,22 @@ namespace BTMC.Core
         {
             if (args.Args.Length > 1)
             {
-                await args.Client.ChatSendServerMessageToLoginAsync("Usage: /chat [on/off]", args.PlayerLogin);
+                await _client.ChatSendServerMessageToLoginAsync("Usage: /chat [on/off]", args.PlayerLogin);
                 return;
             }
 
             if (args.Args.Length == 1 && args.Args[0] == "on")
             {
-                await args.Client.CallOrFaultAsync("ChatEnableManualRouting", true, false);
+                await _client.CallOrFaultAsync("ChatEnableManualRouting", true, false);
                 _chatEnabled = true;
             }
             else if (args.Args.Length == 1 && args.Args[0] == "off")
             {
-                await args.Client.CallOrFaultAsync("ChatEnableManualRouting", false, false);
+                await _client.CallOrFaultAsync("ChatEnableManualRouting", false, false);
                 _chatEnabled = false;
             }
             
-            await args.Client.ChatSendServerMessageToLoginAsync($"Chat is {(_chatEnabled ? "on" : "off")}", args.PlayerLogin);
+            await _client.ChatSendServerMessageToLoginAsync($"Chat is {(_chatEnabled ? "on" : "off")}", args.PlayerLogin);
         }
         
         [Command("chatformat")]
@@ -203,7 +201,7 @@ namespace BTMC.Core
         {
             if (args.Args.Length != 1)
             {
-                await args.Client.ChatSendServerMessageToLoginAsync("Usage: /chatformat [text/json]", args.PlayerLogin);
+                await _client.ChatSendServerMessageToLoginAsync("Usage: /chatformat [text/json]", args.PlayerLogin);
                 return;
             }
 
@@ -227,7 +225,7 @@ namespace BTMC.Core
             }
             else
             {
-                await args.Client.ChatSendServerMessageToLoginAsync("Usage: /chatformat [text/json]", args.PlayerLogin);
+                await _client.ChatSendServerMessageToLoginAsync("Usage: /chatformat [text/json]", args.PlayerLogin);
             }
         }
     }

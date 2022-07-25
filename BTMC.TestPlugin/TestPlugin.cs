@@ -4,7 +4,10 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using BTMC.Core;
 using BTMC.Core.Commands;
+using GbxRemoteNet;
+using GbxRemoteNet.Structs;
 using GbxRemoteNet.XmlRpc;
+using GbxRemoteNet.XmlRpc.Types;
 using Microsoft.Extensions.Logging;
 
 namespace BTMC.TestPlugin
@@ -19,11 +22,46 @@ namespace BTMC.TestPlugin
         public bool IsInOfficialMode;
         public int LadderRanking;
     }
-    
+
     [Settings("test")]
     public class TestSettings
     {
     
+    }
+
+    public class MyMapInfo
+    {
+        public string UId { get; set; }
+
+        public string Name { get; set; }
+
+        public string FileName { get; set; }
+
+        public string Author { get; set; }
+
+        public string Environment { get; set; }
+
+        public string Mood { get; set; }
+
+        public int BronzeTime { get; set; }
+
+        public int SilverTime { get; set; }
+
+        public int GoldTime { get; set; }
+
+        public int AuthorTime { get; set; }
+
+        public int CopperPrice { get; set; }
+
+        public bool LapRace { get; set; }
+
+        public int NbLaps { get; set; }
+
+        public int NbCheckpoints { get; set; }
+
+        public string MapType { get; set; }
+
+        public string MapStyle { get; set; }
     }
 
     [Plugin("Test Plugin", "0.0.1")]
@@ -32,42 +70,48 @@ namespace BTMC.TestPlugin
         private readonly ILogger<TestPlugin> _logger;
         private readonly ChatController _chatController;
         private readonly ManialinkController _manialinkController;
+        private readonly GbxRemoteClient _client;
+        private readonly PlayerController _playerController;
 
-        private readonly int _okAction;
-        private readonly int _cancelAction;
-
-        public TestPlugin(ILogger<TestPlugin> logger, ChatController chatController, ManialinkController manialinkController)
+        public TestPlugin(ILogger<TestPlugin> logger, ChatController chatController, ManialinkController manialinkController, GbxRemoteService gbxRemoteService, PlayerController playerController)
         {
             _logger = logger;
             _chatController = chatController;
             _manialinkController = manialinkController;
+            _client = gbxRemoteService.Client;
+            _playerController = playerController;
+        }
 
-            _okAction = _manialinkController.GenUniqueAction();
-            _cancelAction = _manialinkController.GenUniqueAction();
+        [Command("map")]
+        public async Task MapCommand(CommandArgs args)
+        {
+            var mapInfo = await _client.GetCurrentMapInfoAsync();
+            await _chatController.SendMessageToLoginAsync(args.PlayerLogin, JsonSerializer.Serialize(mapInfo, new JsonSerializerOptions { WriteIndented = true }));
         }
 
         [Command("simple")]
         public async Task SimpleCommand(CommandArgs args)
         {
-            await args.Client.ChatSendServerMessageToLoginAsync("simple command :)", args.PlayerLogin);
-            
+            var okAction = _manialinkController.GenUniqueAction();
+            var cancelAction = _manialinkController.GenUniqueAction();
             var answer = await _manialinkController.SendManialinkAsync(
-                args.Client, args.PlayerLogin,
+                args.PlayerLogin,
                 $@"
                 <manialink version=""3"">
-                <label pos=""0 -10"" action=""{_okAction}"" text=""Ok"" />
-                <label pos=""0  10"" action=""{_cancelAction}"" text=""Cancel"" />
+                <label pos=""0 -10"" action=""{okAction}"" text=""Ok"" />
+                <label pos=""0  10"" action=""{cancelAction}"" text=""Cancel"" />
                 </manialink>
                 ",
-                new[] {_okAction, _cancelAction}
+                new[] {okAction, cancelAction}
             );
-            await _chatController.SendMessageToLoginAsync(args.Client, args.PlayerLogin, $"You clicked {(answer == _okAction ? "Ok" : "Cancel")}!");
+            
+            await _chatController.SendMessageToLoginAsync(args.PlayerLogin, $"You clicked {(answer == okAction ? "Ok" : "Cancel")}!");
         }
 
         [EventHandler(EventType.Checkpoint)]
         public async Task<bool> OnCheckpoint(CheckpointEvent e)
         {
-            await _chatController.SendMessageToLoginAsync(e.Client, e.Login, $"CP: {e.CheckpointInRace + 1}, SPEED: {e.Speed*3.6:F0}", clubtag: "TIMER");
+            await _chatController.SendMessageToLoginAsync(e.Login, $"CP: {e.CheckpointInRace + 1}, SPEED: {e.Speed*3.6:F0}", clubtag: "TIMER");
 
             return false;
         }
@@ -75,7 +119,7 @@ namespace BTMC.TestPlugin
         [EventHandler(EventType.Finish)]
         public async Task<bool> OnFinish(FinishEvent e)
         {
-            await _chatController.SendMessageToLoginAsync(e.Client, e.Login, $"FINISH, TIME: {TimeSpan.FromMilliseconds(e.RaceTime):hh\\:mm\\:ss\\.fff}, SPEED: {e.Speed*3.6:F0}", clubtag: "TIMER");
+            await _chatController.SendMessageToLoginAsync(e.Login, $"FINISH, TIME: {TimeSpan.FromMilliseconds(e.RaceTime):hh\\:mm\\:ss\\.fff}, SPEED: {e.Speed*3.6:F0}", clubtag: "TIMER");
 
             return false;
         }
@@ -83,10 +127,8 @@ namespace BTMC.TestPlugin
         [EventHandler(EventType.Join)]
         public async Task<bool> OnJoin(PlayerJoinEvent e)
         {
-            _logger.LogInformation("login: {} , isSpectator: {}", e.Login, e.IsSpectator);
-            var a = await e.Client.CallOrFaultAsync("GetPlayerInfo", e.Login, 0);
-            var playerInfo = (PlayerInfo)XmlRpcTypes.ToNativeValue<PlayerInfo>(a);
-            await e.Client.ChatSendServerMessageAsync($"{playerInfo.NickName} has {(e.IsSpectator ? "joined as a spectator" : "joined the server")}");
+            var playerInfo = _playerController.GetPlayerInfo(e.Login);
+            await _chatController.SendMessageAsync($"{playerInfo.Nickname} has {(e.IsSpectator ? "joined as a spectator" : "joined the server")}");
 
             return false;
         }
@@ -108,17 +150,17 @@ namespace BTMC.TestPlugin
         {
             if (!_adminController.IsAdmin(PlayerLogin))
             {
-                await _chatController.SendMessageToLoginAsync(Client, PlayerLogin, "You do not have access to this command", clubtag: "NOTICE");
+                await _chatController.SendMessageToLoginAsync(PlayerLogin, "You do not have access to this command", clubtag: "NOTICE");
                 return;
             }
             
             if (Args.Length == 0)
             {
-                await _chatController.SendMessageToLoginAsync(Client, PlayerLogin, "Usage: /notice <message>", clubtag: "NOTICE");
+                await _chatController.SendMessageToLoginAsync(PlayerLogin, "Usage: /notice <message>", clubtag: "NOTICE");
                 return;
             }
             
-            await _chatController.SendMessageAsync(Client, Args[0], clubtag: "NOTICE");
+            await _chatController.SendMessageAsync(Args[0], clubtag: "NOTICE");
         }
     }
 }

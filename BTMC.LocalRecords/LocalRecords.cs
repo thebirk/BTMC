@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using GbxRemoteNet;
 
 namespace BTMC.LocalRecords
 {
@@ -25,17 +26,16 @@ namespace BTMC.LocalRecords
     [Plugin("LocalRecords", "1.0.0")]
     public class LocalRecords
     {
-        public string Name => "LocalRecords";
-        public string Version => "1.0.0";
-        
         private readonly ILogger<LocalRecords> _logger;
         private readonly LocalRecordsSettings _settings;
         private readonly LocalRecordsContext _context;
+        private readonly GbxRemoteClient _client;
 
-        public LocalRecords(ILogger<LocalRecords> logger, IOptions<LocalRecordsSettings> options)
+        public LocalRecords(ILogger<LocalRecords> logger, IOptions<LocalRecordsSettings> options, GbxRemoteService gbxRemoteService)
         {
             _logger = logger;
             _settings = options?.Value;
+            _client = gbxRemoteService.Client;
 
             _logger.LogInformation("LocalRecords constructor");
             _context = new LocalRecordsContext(_settings);
@@ -55,17 +55,19 @@ namespace BTMC.LocalRecords
         }
 
         [EventHandler(EventType.Finish)]
-        public void OnFinish(FinishEvent args)
+        public async Task<bool> OnFinish(FinishEvent args)
         {
-            // get current map
-            var mapId = 0;
+            var mapInfo = await _client.GetCurrentMapInfoAsync();
+            
             _context.Records.Add(new Database.Models.Record
             {
-                MapId = mapId,
+                MapId = mapInfo.UId,
                 Time = args.RaceTime,
-                PlayerUid = args.Login
+                PlayerLogin = args.Login,
             });
-            _context.SaveChanges();
+            await _context.SaveChangesAsync();
+
+            return false;
         }
     }
 
