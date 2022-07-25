@@ -31,17 +31,37 @@ namespace BTMC.TestPlugin
     {
         private readonly ILogger<TestPlugin> _logger;
         private readonly ChatController _chatController;
+        private readonly ManialinkController _manialinkController;
 
-        public TestPlugin(ILogger<TestPlugin> logger, ChatController chatController)
+        private readonly int _okAction;
+        private readonly int _cancelAction;
+
+        public TestPlugin(ILogger<TestPlugin> logger, ChatController chatController, ManialinkController manialinkController)
         {
             _logger = logger;
             _chatController = chatController;
+            _manialinkController = manialinkController;
+
+            _okAction = _manialinkController.GenUniqueAction();
+            _cancelAction = _manialinkController.GenUniqueAction();
         }
 
         [Command("simple")]
         public async Task SimpleCommand(CommandArgs args)
         {
             await args.Client.ChatSendServerMessageToLoginAsync("simple command :)", args.PlayerLogin);
+            
+            var answer = await _manialinkController.SendManialinkAsync(
+                args.Client, args.PlayerLogin,
+                $@"
+                <manialink version=""3"">
+                <label pos=""0 -10"" action=""{_okAction}"" text=""Ok"" />
+                <label pos=""0  10"" action=""{_cancelAction}"" text=""Cancel"" />
+                </manialink>
+                ",
+                new[] {_okAction, _cancelAction}
+            );
+            await _chatController.SendMessageToLoginAsync(args.Client, args.PlayerLogin, $"You clicked {(answer == _okAction ? "Ok" : "Cancel")}!");
         }
 
         [EventHandler(EventType.Checkpoint)]

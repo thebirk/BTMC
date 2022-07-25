@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using GbxRemoteNet;
+using GbxRemoteNet.Structs;
 
 namespace BTMC.Core
 {
@@ -47,6 +48,16 @@ namespace BTMC.Core
         /// Dispatched when the plugin is unloaded
         /// </summary>
         Unload,
+        
+        /// <summary>
+        /// Dispatched when a players info updates
+        /// </summary>
+        PlayerInfo,
+        
+        /// <summary>
+        /// Dispatched when a manialink page answer is received
+        /// </summary>
+        ManialinkAnswer,
         
         /// <summary>
         /// Custom event dispatched by plugins themselves. Useful for inter-plugin communication
@@ -202,10 +213,40 @@ namespace BTMC.Core
         }
     }
 
-    public class PlayerFinishArgs
+    public class PlayerInfoEvent : Event
     {
-        public string PlayerUid { get; set; }
-        public string TimeOrScore { get; set; }
+        public string Login { get; set; }
+        public string Nickname { get; set; }
+        public int PlayerId { get; set; }
+        //TODO: parse SpectatorStatus
+        public int SpectatorStatus { get; set; }
+        //TODO: parse
+        public int Flags { get; set; }
+        
+        public PlayerInfoEvent(GbxRemoteClient client, SPlayerInfo info) : base(EventType.PlayerInfo, client)
+        {
+            Login = info.Login;
+            Nickname = info.NickName;
+            PlayerId = info.PlayerId;
+            SpectatorStatus = info.SpectatorStatus;
+            Flags = info.Flags;
+        }
+    }
+
+    public class ManialinkAnswerEvent : Event
+    {
+        public int PlayerUid { get; set; }
+        public string Login { get; set; }
+        public string Answer { get; set; }
+        public SEntryVal[] Entries { get; set; }
+        
+        public ManialinkAnswerEvent(int playerUid, string login, string answer, SEntryVal[] entries, GbxRemoteClient client) : base(EventType.ManialinkAnswer, client)
+        {
+            PlayerUid = playerUid;
+            Login = login;
+            Answer = answer;
+            Entries = entries;
+        }
     }
 
     public class CustomEvent : Event
@@ -232,6 +273,8 @@ namespace BTMC.Core
         private readonly EventDispatcher<CheckpointEvent> _checkpointDispatcher = new();
         private readonly EventDispatcher<FinishEvent> _finishDispatcher = new();
         private readonly EventDispatcher<WaypointEvent> _waypointDispatcher = new();
+        private readonly EventDispatcher<PlayerInfoEvent> _playerInfoDispatcher = new();
+        private readonly EventDispatcher<ManialinkAnswerEvent> _manialinkAnswerDispatcher = new();
 
         public Task DispatchAsync(Event e)
         {
@@ -253,6 +296,10 @@ namespace BTMC.Core
                     return _finishDispatcher.DispatchAsync((FinishEvent)e);
                 case EventType.Waypoint:
                     return _waypointDispatcher.DispatchAsync((WaypointEvent) e);
+                case EventType.PlayerInfo:
+                    return _playerInfoDispatcher.DispatchAsync((PlayerInfoEvent) e);
+                case EventType.ManialinkAnswer:
+                    return _manialinkAnswerDispatcher.DispatchAsync((ManialinkAnswerEvent) e);
             }
 
             return Task.CompletedTask;
@@ -285,6 +332,12 @@ namespace BTMC.Core
                     break;
                 case EventType.Waypoint:
                     _waypointDispatcher.RegisterEventHandler((EventHandler<WaypointEvent>) handler);
+                    break;
+                case EventType.PlayerInfo:
+                    _playerInfoDispatcher.RegisterEventHandler((EventHandler<PlayerInfoEvent>) handler);
+                    break;
+                case EventType.ManialinkAnswer:
+                    _manialinkAnswerDispatcher.RegisterEventHandler((EventHandler<ManialinkAnswerEvent>) handler);
                     break;
             }
         }

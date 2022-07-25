@@ -55,15 +55,15 @@ namespace BTMC.LocalRecords
         }
 
         [EventHandler(EventType.Finish)]
-        public void OnFinish(PlayerFinishArgs args)
+        public void OnFinish(FinishEvent args)
         {
             // get current map
             var mapId = 0;
             _context.Records.Add(new Database.Models.Record
             {
                 MapId = mapId,
-                Time = int.Parse(args.TimeOrScore),
-                PlayerUid = args.PlayerUid
+                Time = args.RaceTime,
+                PlayerUid = args.Login
             });
             _context.SaveChanges();
         }

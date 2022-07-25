@@ -14,11 +14,13 @@ using System;
 using System.Diagnostics;
 using System.Diagnostics.Eventing.Reader;
 using System.Linq;
+using System.Text.Json;
 using GbxRemoteNet.Structs;
 using GbxRemoteNet.XmlRpc.Packets;
 using GbxRemoteNet.XmlRpc.Types;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace BTMC.Core
 {
@@ -139,16 +141,9 @@ namespace BTMC.Core
                 _logger.LogInformation("Player disconnected: {}, reason: {}", login, reason);
                 await _eventSystem.DispatchAsync(new PlayerDisconnectEvent(_client, login, reason));
             };
-            
-            _client.OnPlayerInfoChanged += async (SPlayerInfo info) =>
-            {
-                
-            };
 
             _client.OnModeScriptCallback += async (string method, JObject data) =>
             {
-                _logger.LogInformation("ModeScriptCallback {}", method);
-
                 switch (method)
                 {
                     case "Trackmania.Event.GiveUp":
@@ -204,6 +199,9 @@ namespace BTMC.Core
                             IsEndRace = waypoint.IsEndRace,
                         });
                         break;
+                    default:
+                        _logger.LogInformation("ModeScriptCallback {}", method);
+                        break;
                 }
             };
 
@@ -215,6 +213,33 @@ namespace BTMC.Core
             _client.OnBeginMap += async (SMapInfo map) =>
             {
 
+            };
+
+            _client.OnPlayerInfoChanged += async (SPlayerInfo info) =>
+            {
+                
+            };
+
+            _client.OnAnyCallback += (call, pars) =>
+            {
+
+                switch (call.Method)
+                {
+                    case "ManiaPlanet.PlayerManialinkPageAnswer":
+                        var playerUid = (int) XmlRpcTypes.ToNativeValue<int>(call.Arguments[0]);
+                        var login = (string)XmlRpcTypes.ToNativeValue<string>(call.Arguments[1]);
+                        var answer = (string)XmlRpcTypes.ToNativeValue<string>(call.Arguments[2]);
+                        var entries = XmlRpcTypes.ToNativeArray<SEntryVal>((XmlRpcArray) call.Arguments[3]);
+                        
+                        //_logger.LogInformation("YOU CLICKED! {} {} {} {}", playerUid, login, answer, JsonSerializer.Serialize(entries, new JsonSerializerOptions{WriteIndented = true}));
+                        _eventSystem.DispatchAsync(new ManialinkAnswerEvent(playerUid, login, answer, entries, _client));
+                        break;
+                    default:
+                        _logger.LogInformation("Callback {}", call.Method);
+                        break;
+                }
+                
+                return Task.CompletedTask;
             };
 
             await _client.CallMethodAsync("system.listMethods");
@@ -489,6 +514,12 @@ namespace BTMC.Core
                                     break;
                                 case EventType.Waypoint:
                                     handler = CreateEventHandlerDelegate<WaypointEvent>(pluginAttribute, pluginInstance, method);
+                                    break;
+                                case EventType.PlayerInfo:
+                                    handler = CreateEventHandlerDelegate<PlayerInfoEvent>(pluginAttribute, pluginInstance, method);
+                                    break;
+                                case EventType.ManialinkAnswer:
+                                    handler = CreateEventHandlerDelegate<ManialinkAnswerEvent>(pluginAttribute, pluginInstance, method);
                                     break;
                                 default:
                                     throw new Exception($"Invalid EventType enum: {attribute.Type}");
