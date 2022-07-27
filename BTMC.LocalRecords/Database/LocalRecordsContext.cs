@@ -3,13 +3,17 @@ using BTMC.LocalRecords.Database.Models;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.Configuration;
 
 namespace BTMC.LocalRecords.Database
 {
-    class LocalRecordsContext : DbContext
+    public class LocalRecordsContext : DbContext
     {
         public DbSet<Record> Records { get; set; }
         public DbSet<Map> Maps { get; set; }
@@ -26,7 +30,7 @@ namespace BTMC.LocalRecords.Database
             switch (_settings.DbType)
             {
                 case DbType.Postgres:
-                    optionsBuilder.UseNpgsql("<REDACTED>");
+                    optionsBuilder.UseNpgsql(_settings.ConnectionString);
                     break;
                 default:
                     throw new Exception("Invalid DbType configured");

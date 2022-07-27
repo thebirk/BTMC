@@ -555,7 +555,7 @@ namespace BTMC.Core
             {
                 if (path.EndsWith(".dll"))
                 {
-                    all.AddRange(Assembly.LoadFile(path).DefinedTypes);
+                    all.AddRange(Assembly.LoadFrom(path).DefinedTypes);
                 }
             }
 

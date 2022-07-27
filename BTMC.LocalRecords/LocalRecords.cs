@@ -5,9 +5,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
+using System.Data.Common;
 using System.Linq;
 using System.Threading.Tasks;
+using BTMC.LocalRecords.Database.Models;
 using GbxRemoteNet;
+using Microsoft.Extensions.Configuration;
 
 namespace BTMC.LocalRecords
 {
@@ -19,7 +22,7 @@ namespace BTMC.LocalRecords
     [Settings("LocalRecords")]
     public class LocalRecordsSettings
     {
-        public DbType DbType { get; set; }
+        public DbType DbType { get; set; } = DbType.Postgres;
         public string ConnectionString { get; set; }
     }
 
@@ -31,37 +34,49 @@ namespace BTMC.LocalRecords
         private readonly LocalRecordsContext _context;
         private readonly GbxRemoteClient _client;
 
-        public LocalRecords(ILogger<LocalRecords> logger, IOptions<LocalRecordsSettings> options, GbxRemoteService gbxRemoteService)
+        public LocalRecords(ILogger<LocalRecords> logger, IOptions<LocalRecordsSettings> options, GbxRemoteService gbxRemoteService, IConfiguration configuration)
         {
             _logger = logger;
-            _settings = options?.Value;
             _client = gbxRemoteService.Client;
 
-            _logger.LogInformation("LocalRecords constructor");
+            _settings = new LocalRecordsSettings();
+            configuration.Bind("localrecords", _settings);
+
             _context = new LocalRecordsContext(_settings);
             _context.Database.EnsureCreated();
         }
 
-        public void Unload()
+        [EventHandler(EventType.Unload)]
+        public async Task<bool> Unload(UnloadEvent e)
         {
-            _context.SaveChanges();
-            _context.Dispose();
-        }
+            await _context.SaveChangesAsync();
+            await _context.DisposeAsync();
 
-        [EventHandler(EventType.Chat)]
-        public void PlayerChat(PlayerChatEvent e)
-        {
-            _logger.LogInformation($"PlayerChat: {e.PlayerUid} ({e.Login}): {e.Message}");
+            return false;
         }
 
         [EventHandler(EventType.Finish)]
         public async Task<bool> OnFinish(FinishEvent args)
         {
             var mapInfo = await _client.GetCurrentMapInfoAsync();
-            
-            _context.Records.Add(new Database.Models.Record
+
+            var map = await _context.Maps.SingleOrDefaultAsync(x => x.MapId == mapInfo.UId);
+            if (map == null)
             {
-                MapId = mapInfo.UId,
+                map = new Map
+                {
+                    Name = mapInfo.Name,
+                    MapId = mapInfo.UId,
+                };
+                await _context.Maps.AddAsync(map);
+            }
+            
+            // player incoherence? does that event apply in 2020?
+            // does it ignore finishes automatically or do we have to track giveups/finishes for incoherent users
+            //TODO: only store improvements
+            await _context.Records.AddAsync(new Record
+            {
+                MapId = map.MapId,
                 Time = args.RaceTime,
                 PlayerLogin = args.Login,
             });
