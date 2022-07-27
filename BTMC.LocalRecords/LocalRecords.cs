@@ -77,7 +77,6 @@ namespace BTMC.LocalRecords
 
             // player incoherence? does that event apply in 2020?
             // does it ignore finishes automatically or do we have to track giveups/finishes for incoherent users
-            //TODO: only store improvements
             var record = await _context.Records.SingleOrDefaultAsync(x => x.MapId == map.MapId && x.PlayerLogin == args.Login);
             if (record != null)
             {

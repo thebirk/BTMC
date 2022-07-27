@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using GbxRemoteNet;
 using GbxRemoteNet.Structs;
@@ -84,7 +86,6 @@ namespace BTMC.Core
         /// Set to true whenever an event handler returns true.
         /// Used as a hint for event handlers to determine what kind of action they should they  take.
         /// </summary>
-        public bool Handled { get; set; }
 
         protected Event(EventType type)
         {
@@ -365,13 +366,8 @@ namespace BTMC.Core
 
         public async Task DispatchAsync(TEvent e)
         {
-            foreach (var handler in _handlers)
-            {
-                if (await handler.Invoke(e))
-                {
-                    e.Handled = true;
-                }
-            }
+            var tasks = _handlers.Select(x => x.Invoke(e));
+            await Task.WhenAll(tasks.ToArray());
         }
     }
 }

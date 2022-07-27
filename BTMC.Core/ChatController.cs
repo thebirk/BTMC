@@ -121,7 +121,6 @@ namespace BTMC.Core
         [EventHandler(EventType.Chat)]
         public async Task<bool> OnChat(PlayerChatEvent e)
         {
-            if (e.Handled) return false;
             if (!_chatEnabled) return false;
             
             var a = await _client.CallOrFaultAsync("GetPlayerInfo", e.Login, 0);

@@ -83,8 +83,6 @@ namespace BTMC.Core
         [EventHandler(EventType.ManialinkAnswer)]
         public Task<bool> OnManialinkAnswer(ManialinkAnswerEvent e)
         {
-            if (e.Handled) return Task.FromResult(false);
-
             if (!int.TryParse(e.Answer, out var answer))
             {
                 return Task.FromResult(false);
