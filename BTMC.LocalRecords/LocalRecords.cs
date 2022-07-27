@@ -33,11 +33,15 @@ namespace BTMC.LocalRecords
         private readonly LocalRecordsSettings _settings;
         private readonly LocalRecordsContext _context;
         private readonly GbxRemoteClient _client;
+        private readonly ChatController _chatController;
+        private readonly PlayerController _playerController;
 
-        public LocalRecords(ILogger<LocalRecords> logger, IOptions<LocalRecordsSettings> options, GbxRemoteService gbxRemoteService, IConfiguration configuration)
+        public LocalRecords(ILogger<LocalRecords> logger, IOptions<LocalRecordsSettings> options, GbxRemoteService gbxRemoteService, IConfiguration configuration, ChatController chatController, PlayerController playerController)
         {
             _logger = logger;
             _client = gbxRemoteService.Client;
+            _chatController = chatController;
+            _playerController = playerController;
 
             _settings = new LocalRecordsSettings();
             configuration.Bind("localrecords", _settings);
@@ -70,16 +74,35 @@ namespace BTMC.LocalRecords
                 };
                 await _context.Maps.AddAsync(map);
             }
-            
+
             // player incoherence? does that event apply in 2020?
             // does it ignore finishes automatically or do we have to track giveups/finishes for incoherent users
             //TODO: only store improvements
-            await _context.Records.AddAsync(new Record
+            var record = await _context.Records.SingleOrDefaultAsync(x => x.MapId == map.MapId && x.PlayerLogin == args.Login);
+            if (record != null)
             {
-                MapId = map.MapId,
-                Time = args.RaceTime,
-                PlayerLogin = args.Login,
-            });
+                if (args.RaceTime >= record.Time)
+                {
+                    return false;
+                }
+
+                var oldTime = record.Time;
+                record.Time = args.RaceTime;
+                
+                await _chatController.SendMessageAsync($"{_playerController.GetPlayerInfo(args.Login).Nickname} set a new personal best! {TimeSpan.FromMilliseconds(args.RaceTime):hh\\:mm\\:ss\\.fff}(-{TimeSpan.FromMilliseconds(oldTime - args.RaceTime):hh\\:mm\\:ss\\.fff})", clubtag: "LocalRecords");
+            }
+            else
+            {
+                await _context.Records.AddAsync(new Record
+                {
+                    MapId = map.MapId,
+                    Time = args.RaceTime,
+                    PlayerLogin = args.Login,
+                });
+                
+                await _chatController.SendMessageAsync($"{_playerController.GetPlayerInfo(args.Login).Nickname} set a new personal best! {TimeSpan.FromMilliseconds(args.RaceTime):hh\\:mm\\:ss\\.fff}", clubtag: "LocalRecords");
+            }
+            
             await _context.SaveChangesAsync();
 
             return false;

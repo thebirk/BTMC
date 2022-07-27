@@ -12,56 +12,10 @@ using Microsoft.Extensions.Logging;
 
 namespace BTMC.TestPlugin
 {
-    public class PlayerInfo
-    {
-        public string Login;
-        public string NickName;
-        public int PlayerId;
-        public int TeamId;
-        public bool IsSpectator;
-        public bool IsInOfficialMode;
-        public int LadderRanking;
-    }
-
     [Settings("test")]
     public class TestSettings
     {
     
-    }
-
-    public class MyMapInfo
-    {
-        public string UId { get; set; }
-
-        public string Name { get; set; }
-
-        public string FileName { get; set; }
-
-        public string Author { get; set; }
-
-        public string Environment { get; set; }
-
-        public string Mood { get; set; }
-
-        public int BronzeTime { get; set; }
-
-        public int SilverTime { get; set; }
-
-        public int GoldTime { get; set; }
-
-        public int AuthorTime { get; set; }
-
-        public int CopperPrice { get; set; }
-
-        public bool LapRace { get; set; }
-
-        public int NbLaps { get; set; }
-
-        public int NbCheckpoints { get; set; }
-
-        public string MapType { get; set; }
-
-        public string MapStyle { get; set; }
     }
 
     [Plugin("Test Plugin", "0.0.1")]

@@ -25,6 +25,13 @@ namespace BTMC.LocalRecords.Database
             _settings = settings;
         }
 
+        protected override void OnModelCreating(ModelBuilder builder)
+        {
+            builder.Entity<Record>()
+                .HasIndex(x => new { x.MapId, x.PlayerLogin })
+                .IsUnique();
+        }
+
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             switch (_settings.DbType)
